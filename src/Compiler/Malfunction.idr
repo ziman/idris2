@@ -39,14 +39,34 @@ showString [] = id
 showString ('"'::cs) = ("\\\"" ++) . showString cs
 showString (c::cs) = showChar c . showString cs
 
-mlfString : String -> String
-mlfString cs = strCons '"' (showString (unpack cs) "\"")
+mlfString : String -> Doc
+mlfString cs = text $ strCons '"' (showString (unpack cs) "\"")
+
+sexp : List Doc -> Doc
+sexp = parens . hsep
+
+mlfGlobal : String -> Doc
+mlfGlobal mlName = parens $
+  text "global"
+    <++> hsep
+      [ text ("$" ++ n)
+      | n <- split (== '.') mlName
+      ]
+
+mlfApply : Doc -> List Doc -> Doc
+mlfApply f args = sexp (text "apply" :: f :: args)
+
+mlfLibCall : String -> List Doc -> Doc
+mlfLibCall fn args = mlfApply (mlfGlobal fn) args
+
+mlfDebug : Show a => a -> Doc
+mlfDebug x = mlfLibCall "Stdlib.failwith" [show x]
 
 mlfDef : (Name, (FC, NamedDef)) -> Core Doc
-mlfDef def = ?rhsDef
+mlfDef def = pure $ mlfDebug def
 
 mlfTm : NamedCExp -> Core Doc
-mlfTm tm = ?rhsTm
+mlfTm tm = pure $ mlfDebug tm
 
 compileToMLF : Ref Ctxt Defs ->
                ClosedTerm -> (outfile : String) -> Core ()
@@ -66,7 +86,11 @@ compileToMLF c tm outfile
          mainMlf <- mlfTm ctm
          let code = render "  " $ parens $
                 text "module"
-                $$ indent (vcat defsMlf $$ mainMlf $$ parens (text "export"))
+                $$ indent (
+                     vcat defsMlf
+                  $$ mainMlf
+                  $$ parens (text "export")
+                )
          Right () <- coreLift $ writeFile outfile code
             | Left err => throw (FileErr outfile err)
          pure ()
