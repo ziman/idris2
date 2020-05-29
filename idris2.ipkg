@@ -16,6 +16,7 @@ modules =
     Compiler.Scheme.Gambit,
     Compiler.Scheme.Common,
     Compiler.VMCode,
+    Compiler.Malfunction,
 
     Control.Delayed,
 
@@ -150,6 +151,7 @@ modules =
     Utils.Shunting,
     Utils.String,
     Utils.Path,
+    Utils.Pretty,
 
     Yaffle.Main,
     Yaffle.REPL
