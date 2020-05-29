@@ -16,6 +16,7 @@ modules =
     Compiler.Scheme.Gambit,
     Compiler.Scheme.Common,
     Compiler.VMCode,
+    Compiler.Malfunction,
 
     Core.AutoSearch,
     Core.Binary,
@@ -152,6 +153,7 @@ modules =
     Utils.Shunting,
     Utils.String,
     Utils.Path,
+    Utils.Pretty,
 
     Yaffle.Main,
     Yaffle.REPL
