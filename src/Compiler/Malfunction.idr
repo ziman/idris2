@@ -66,7 +66,10 @@ mlfName : Name -> Doc
 mlfName = text . pack . sanitise . unpack . show
   where
     san : Char -> Bool
-    san c = ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z')
+    san c =
+        ('A' <= c && c <= 'Z')
+        || ('a' <= c && c <= 'z')
+        || ('0' <= c && c <= '9')
 
     sanitise : List Char -> List Char
     sanitise [] = []
@@ -78,15 +81,53 @@ mlfName = text . pack . sanitise . unpack . show
         (False, '-' :: cs') =>        '-' :: cs'
         (False,  k  :: cs') => '-' ::  k  :: cs'
 
-mlfDef : (Name, FC, NamedDef) -> Core Doc
-mlfDef (n, fc, def) = pure $
-  parens (
-    text "$" <+> mlfName n
-    $$ indent (mlfDebug def)
-  )
+mlfVar : Name -> Doc
+mlfVar n = text "$" <+> mlfName n
+
+{-
+     -- Normal function definition
+     MkNmFun : (args : List Name) -> NamedCExp -> NamedDef
+     -- Constructor
+     MkNmCon : (tag : Maybe Int) -> (arity : Nat) -> (nt : Maybe Nat) -> NamedDef
+     -- Foreign definition
+     MkNmForeign : (ccs : List String) ->
+                   (fargs : List CFType) ->
+                   CFType ->
+                   NamedDef
+     -- A function which will fail at runtime (usually due to being a hole) so needs
+     -- to run, discarding arguments, no matter how many arguments are passed
+     MkNmError : NamedCExp -> NamedDef
+-}
 
 mlfTm : NamedCExp -> Core Doc
 mlfTm tm = pure $ mlfDebug tm
+
+mlfLazy : Doc -> Doc
+mlfLazy doc = sexp [text "lazy", doc]
+
+mlfForce : Doc -> Doc
+mlfForce doc = sexp [text "force", doc]
+
+mlfLam : List Name -> Doc -> Doc
+mlfLam args rhs = sexp [text "lambda", sexp $ map mlfVar args, rhs]
+
+mlfBody : NamedDef -> Core Doc
+mlfBody (MkNmFun args rhs) =
+  mlfLam args <$> mlfTm rhs
+
+mlfBody (MkNmCon mbTag arity mbNewtype) =
+  pure $ mlfLazy $ mlfDebug (MkNmCon mbTag arity mbNewtype)
+
+mlfBody (MkNmForeign ccs fargs cty) =
+  pure $ mlfLazy $ mlfDebug (MkNmForeign ccs fargs cty)
+
+mlfBody (MkNmError err) =
+  mlfTm err
+
+mlfDef : (Name, FC, NamedDef) -> Core Doc
+mlfDef (n, fc, body) = do
+  body' <- mlfBody body
+  pure $ parens (mlfVar n $$ indent body')
 
 compileToMLF : Ref Ctxt Defs ->
                ClosedTerm -> (outfile : String) -> Core ()
@@ -104,14 +145,14 @@ compileToMLF c tm outfile
 
          defsMlf <- traverse mlfDef ndefs
          mainMlf <- mlfTm ctm
-         let code = render "  " $ parens $
+         let code = render "  " $ parens (
                 text "module"
                 $$ indent (
                      vcat defsMlf
                   $$ parens (text "_" <++> mainMlf)
                   $$ parens (text "export")
                 )
-                $$ text ""  -- end with a newline
+               ) $$ text ""  -- end with a newline
          Right () <- coreLift $ writeFile outfile code
             | Left err => throw (FileErr outfile err)
          pure ()
