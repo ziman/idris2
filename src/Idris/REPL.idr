@@ -3,6 +3,7 @@ module Idris.REPL
 import Compiler.Scheme.Chez
 import Compiler.Scheme.Racket
 import Compiler.Scheme.Gambit
+import Compiler.Malfunction
 import Compiler.Common
 
 import Core.AutoSearch
@@ -179,6 +180,7 @@ findCG
               Chez => pure codegenChez
               Racket => pure codegenRacket
               Gambit => pure codegenGambit
+              Malfunction => pure codegenMalfunction
               Other s => case !(getCodegen s) of
                             Just cg => pure cg
                             Nothing => do coreLift $ putStrLn ("No such code generator: " ++ s)
