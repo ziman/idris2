@@ -60,10 +60,30 @@ mlfLibCall : String -> List Doc -> Doc
 mlfLibCall fn args = mlfApply (mlfGlobal fn) args
 
 mlfDebug : Show a => a -> Doc
-mlfDebug x = mlfLibCall "Stdlib.failwith" [show x]
+mlfDebug x = mlfLibCall "Stdlib.failwith" [mlfString $ show x]
 
-mlfDef : (Name, (FC, NamedDef)) -> Core Doc
-mlfDef def = pure $ mlfDebug def
+mlfName : Name -> Doc
+mlfName = text . pack . sanitise . unpack . show
+  where
+    san : Char -> Bool
+    san c = ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z')
+
+    sanitise : List Char -> List Char
+    sanitise [] = []
+    sanitise (c :: cs) =
+      case (san c, sanitise cs) of
+        (True,  [])         => [c]
+        (False, [])         => []
+        (True,   k  :: cs') =>  c  ::  k  :: cs'
+        (False, '-' :: cs') =>        '-' :: cs'
+        (False,  k  :: cs') => '-' ::  k  :: cs'
+
+mlfDef : (Name, FC, NamedDef) -> Core Doc
+mlfDef (n, fc, def) = pure $
+  parens (
+    text "$" <+> mlfName n
+    $$ indent (mlfDebug def)
+  )
 
 mlfTm : NamedCExp -> Core Doc
 mlfTm tm = pure $ mlfDebug tm
@@ -88,9 +108,10 @@ compileToMLF c tm outfile
                 text "module"
                 $$ indent (
                      vcat defsMlf
-                  $$ mainMlf
+                  $$ parens (text "_" <++> mainMlf)
                   $$ parens (text "export")
                 )
+                $$ text ""  -- end with a newline
          Right () <- coreLift $ writeFile outfile code
             | Left err => throw (FileErr outfile err)
          pure ()
@@ -101,7 +122,7 @@ compileExpr c execDir tm outfile
     = do let mlf = execDir </> outfile <.> "mlf"
              exe = execDir </> outfile
          compileToMLF c tm mlf
-         let cmd = "malfunction -o " ++ exe ++ " " ++ mlf
+         let cmd = "malfunction compile -o " ++ exe ++ " " ++ mlf
          ok <- coreLift $ system cmd
          if ok == 0
             then pure (Just (execDir </> outfile))
