@@ -16,6 +16,7 @@ modules =
     Compiler.Scheme.Gambit,
     Compiler.Scheme.Common,
     Compiler.VMCode,
+    Compiler.TopoSort,
     Compiler.Malfunction,
 
     Control.Delayed,
