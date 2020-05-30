@@ -155,7 +155,10 @@ mlfOp (GT IntegerType) [x,y] = sexp [text ">.ibig", x,y]
 
 mlfOp (Cast IntegerType IntType) [x] = sexp [text "convert.ibig.int", x]
 mlfOp (Cast IntType IntegerType) [x] = sexp [text "convert.int.ibig", x]
-mlfOp (Cast IntegerType StringType) [x] = mlfLibCall "Big_int.string_of_big_int" [x]
+
+-- FIXME: what's the appropriate stdlib function for this?
+mlfOp (Cast IntegerType StringType) [x] =
+  mlfLibCall "Stdlib.string_of_int" [sexp[text "convert.ibig.int", x]]
 
 mlfOp StrAppend [x,y] = mlfLibCall "Stdlib.^" [x,y]
 mlfOp Crash [_, msg] = mlfLibCall "Stdlib.failwith" [msg]
