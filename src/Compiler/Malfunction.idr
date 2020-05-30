@@ -4,6 +4,7 @@ import Compiler.Common
 import Compiler.CompileExpr
 import Compiler.Inline
 import Compiler.Scheme.Common
+import Compiler.TopoSort
 
 import Core.Context
 import Core.Directory
