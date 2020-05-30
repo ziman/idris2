@@ -131,6 +131,7 @@ mlfBlock (Just tag) args = parens $
   $$ indentBlock args
 
 mlfOp : PrimFn arity -> Vect arity Doc -> Doc
+mlfOp (Sub IntType) [x,y] = mlfApply (text "-.int") [x,y]
 mlfOp StrAppend [x,y] = mlfLibCall "Stdlib.^" [x,y]
 mlfOp Crash [_, msg] = mlfLibCall "Stdlib.failwith" [msg]
 mlfOp BelieveMe [_, _, x] = x
@@ -260,6 +261,7 @@ parameters (ldefs : SortedSet Name)
         else mlfVar n
     mlfTm (NmLam fc n rhs) = mlfLam [n] (mlfTm rhs)
     mlfTm (NmLet fc n val rhs) = mlfLet n (mlfTm val) (mlfTm rhs)
+    mlfTm (NmApp fc f []) = mlfTm f
     mlfTm (NmApp fc f args) = mlfApply (mlfTm f) (map mlfTm args)
     mlfTm (NmCon fc cn mbTag args) = mlfBlock mbTag (map mlfTm args)
     mlfTm (NmCrash fc msg) = mlfError msg
