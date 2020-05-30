@@ -98,25 +98,10 @@ sanitise = pack . concatMap sanitise' . unpack
 
 mlfName : Name -> Doc
 mlfName (MN n i) = text (sanitise n) <+> show i
-mlfName n = text . sanitise . show $ n
+mlfName n = text . sanitise . schName $ n
 
 mlfVar : Name -> Doc
 mlfVar n = text "$" <+> mlfName n
-
-{-
-     -- Normal function definition
-     MkNmFun : (args : List Name) -> NamedCExp -> NamedDef
-     -- Constructor
-     MkNmCon : (tag : Maybe Int) -> (arity : Nat) -> (nt : Maybe Nat) -> NamedDef
-     -- Foreign definition
-     MkNmForeign : (ccs : List String) ->
-                   (fargs : List CFType) ->
-                   CFType ->
-                   NamedDef
-     -- A function which will fail at runtime (usually due to being a hole) so needs
-     -- to run, discarding arguments, no matter how many arguments are passed
-     MkNmError : NamedCExp -> NamedDef
--}
 
 mlfLet : Name -> Doc -> Doc -> Doc
 mlfLet n val rhs = parens $
@@ -349,15 +334,8 @@ compileToMLF : Ref Ctxt Defs ->
 compileToMLF c tm outfile
     = do cdata <- getCompileData Cases tm
          let ndefs = namedDefs cdata
-         -- let tags = nameTags cdata
          let ctm = forget (mainExpr cdata)
          let ldefs = lazyDefs ndefs
-
-         {-
-         defs <- get Ctxt
-         l <- newRef {t = List String} Loaded []
-         s <- newRef {t = List String} Structs []
-         -}
 
          defsMlf <- traverse (pure . mlfDef ldefs) ndefs
          mainMlf <- pure $ mlfTm ldefs ctm
