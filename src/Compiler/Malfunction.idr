@@ -274,18 +274,20 @@ mlfBody (MkNmCon mbTag arity mbNewtype) =
     args = [UN $ "arg" ++ show i | i <- [0..cast {to = Int} arity-1]]
 
 mlfBody (MkNmForeign ccs fargs cty) =
-  mlfLam args $
+  mlfLam (map fst args) $
     case ccLibFun ccs of
       Just fn =>
-        mlfLibCall fn (map mlfVar args)
+        mlfLibCall fn (map (mlfVar . fst) $ filter snd args)
       Nothing =>
         mlfError $ "unimplemented foreign: " ++ show (MkNmForeign ccs fargs cty)
   where
-    arity : Int
-    arity = cast $ length fargs
+    mkArgs : Int -> List CFType -> List (Name, Bool)
+    mkArgs i [] = []
+    mkArgs i (CFWorld :: cs) = (MN "farg" i, False) :: mkArgs i cs
+    mkArgs i (c :: cs) = (MN "farg" i, True) :: mkArgs (i + 1) cs
 
-    args : List Name
-    args = [UN $ "arg" ++ show i | i <- [0..arity-1]]
+    args : List (Name, Bool)
+    args = mkArgs 0 fargs
 
 mlfBody (MkNmError err) =
   mlfTm err
