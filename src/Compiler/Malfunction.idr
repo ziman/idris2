@@ -125,38 +125,108 @@ mlfBlock (Just tag) args = parens $
   text "block" <++> sexp [text "tag", show tag]
   $$ indentBlock args
 
-mlfTm : NamedCExp -> Doc
-mlfTm (NmLocal fc n) = mlfVar n
-mlfTm (NmRef fc n) = mlfVar n
-mlfTm (NmLam fc n rhs) = mlfLam [n] (mlfTm rhs)
-mlfTm (NmLet fc n val rhs) = mlfLet n (mlfTm val) (mlfTm rhs)
-mlfTm (NmApp fc f args) = mlfApply (mlfTm f) (map mlfTm args)
-mlfTm (NmCon fc cn mbTag args) = mlfBlock mbTag (map mlfTm args)
-mlfTm (NmCrash fc msg) = mlfError msg
-mlfTm (NmForce fc rhs) = mlfForce (mlfTm rhs)
-mlfTm (NmDelay fc rhs) = mlfLazy (mlfTm rhs)
-mlfTm (NmErased fc) = mlfString "erased"
-mlfTm (NmPrimVal fc (I x)) = show x <+> text ".i64"
-mlfTm (NmPrimVal fc (BI x)) = show x <+> text ".ibig"
-mlfTm (NmPrimVal fc (Str s)) = mlfString s
-mlfTm (NmPrimVal fc (Ch x)) = show (ord x)
-mlfTm (NmPrimVal fc (Db x)) = show x
-mlfTm (NmPrimVal fc WorldVal) = mlfString "world"
-mlfTm (NmPrimVal fc IntType) = mlfString "tyInt"
-mlfTm (NmPrimVal fc IntegerType) = mlfString "tyInteger"
-mlfTm (NmPrimVal fc StringType) = mlfString "tyString"
-mlfTm (NmPrimVal fc CharType) = mlfString "tyChar"
-mlfTm (NmPrimVal fc DoubleType) = mlfString "tyDouble"
-mlfTm (NmPrimVal fc WorldType) = mlfString "tyWorld"
-mlfTm tm = mlfDebug tm
+mlfOp : PrimFn arity -> Vect arity Doc -> Doc
+mlfOp Crash [_, msg] = mlfLibCall "Stdlib.failwith" [msg]
+mlfOp BelieveMe [_, _, x] = x
+mlfOp op args = mlfError $ "unimplemented primop: " ++ show op
 
 {-
-mlfTm (NmOp fc x xs) = ?rhs_7
-mlfTm (NmExtPrim fc p xs) = ?rhs_8
-mlfTm (NmConCase fc sc xs x) = ?rhs_11
-mlfTm (NmConstCase fc sc xs x) = ?rhs_12
-mlfTm (NmPrimVal fc x) = ?rhs_13
+mlfOp (Add ty) = ?rhsOp_1
+mlfOp (Sub ty) = ?rhsOp_2
+mlfOp (Mul ty) = ?rhsOp_3
+mlfOp (Div ty) = ?rhsOp_4
+mlfOp (Mod ty) = ?rhsOp_5
+mlfOp (Neg ty) = ?rhsOp_6
+mlfOp (ShiftL ty) = ?rhsOp_7
+mlfOp (ShiftR ty) = ?rhsOp_8
+mlfOp (BAnd ty) = ?rhsOp_9
+mlfOp (BOr ty) = ?rhsOp_10
+mlfOp (BXOr ty) = ?rhsOp_11
+mlfOp (LT ty) = ?rhsOp_12
+mlfOp (LTE ty) = ?rhsOp_13
+mlfOp (EQ ty) = ?rhsOp_14
+mlfOp (GTE ty) = ?rhsOp_15
+mlfOp (GT ty) = ?rhsOp_16
+mlfOp StrLength = ?rhsOp_17
+mlfOp StrHead = ?rhsOp_18
+mlfOp StrTail = ?rhsOp_19
+mlfOp StrIndex = ?rhsOp_20
+mlfOp StrCons = ?rhsOp_21
+mlfOp StrAppend = ?rhsOp_22
+mlfOp StrReverse = ?rhsOp_23
+mlfOp StrSubstr = ?rhsOp_24
+mlfOp DoubleExp = ?rhsOp_25
+mlfOp DoubleLog = ?rhsOp_26
+mlfOp DoubleSin = ?rhsOp_27
+mlfOp DoubleCos = ?rhsOp_28
+mlfOp DoubleTan = ?rhsOp_29
+mlfOp DoubleASin = ?rhsOp_30
+mlfOp DoubleACos = ?rhsOp_31
+mlfOp DoubleATan = ?rhsOp_32
+mlfOp DoubleSqrt = ?rhsOp_33
+mlfOp DoubleFloor = ?rhsOp_34
+mlfOp DoubleCeiling = ?rhsOp_35
+mlfOp (Cast x y) = ?rhsOp_36
+mlfOp BelieveMe = ?rhsOp_37
+mlfOp Crash = ?rhsOp_38
 -}
+
+mlfExtPrim : Name -> Doc
+mlfExtPrim n = mlfDebug n
+
+mlfConstant : Constant -> Doc
+mlfConstant (I x) = show x <+> text ".i64"
+mlfConstant (BI x) = show x <+> text ".ibig"
+mlfConstant (Str s) = mlfString s
+mlfConstant (Ch x) = show (ord x)
+mlfConstant (Db x) = show x
+mlfConstant WorldVal = mlfString "%World"
+mlfConstant IntType = mlfString "TyInt"
+mlfConstant IntegerType = mlfString "TyInteger"
+mlfConstant StringType = mlfString "TyString"
+mlfConstant CharType = mlfString "TyChar"
+mlfConstant DoubleType = mlfString "TyDouble"
+mlfConstant WorldType = mlfString "TyWorld"
+
+mlfSwitch : Doc -> List Doc -> Maybe Doc -> Doc
+mlfSwitch scrut alts (Just dflt) = parens $
+  text "switch" <++> scrut
+  $$ indentBlock alts
+  $$ sexp [text "_", sexp [text "tag", text "_"], dflt]
+
+mlfSwitch scrut alts Nothing = parens $
+  text "switch" <++> scrut
+  $$ indentBlock alts
+
+mutual
+  mlfConAlt : NamedConAlt -> Doc
+  mlfConAlt (MkNConAlt n Nothing args rhs) =
+    mlfError $ "no tag for mlfConAlt: " ++ show n
+  mlfConAlt (MkNConAlt n (Just tag) args rhs) =
+    sexp [sexp [text "tag", show tag], mlfTm rhs]
+
+  mlfConstAlt : NamedConstAlt -> Doc
+  mlfConstAlt (MkNConstAlt c rhs) =
+    parens (mlfConstant c <++> mlfTm rhs)
+
+  mlfTm : NamedCExp -> Doc
+  mlfTm (NmLocal fc n) = mlfVar n
+  mlfTm (NmRef fc n) = mlfVar n
+  mlfTm (NmLam fc n rhs) = mlfLam [n] (mlfTm rhs)
+  mlfTm (NmLet fc n val rhs) = mlfLet n (mlfTm val) (mlfTm rhs)
+  mlfTm (NmApp fc f args) = mlfApply (mlfTm f) (map mlfTm args)
+  mlfTm (NmCon fc cn mbTag args) = mlfBlock mbTag (map mlfTm args)
+  mlfTm (NmCrash fc msg) = mlfError msg
+  mlfTm (NmForce fc rhs) = mlfForce (mlfTm rhs)
+  mlfTm (NmDelay fc rhs) = mlfLazy (mlfTm rhs)
+  mlfTm (NmErased fc) = mlfString "erased"
+  mlfTm (NmPrimVal ft x) = mlfConstant x
+  mlfTm (NmOp fc op args) = mlfOp op (map mlfTm args)
+  mlfTm (NmExtPrim fc n args) = mlfApply (mlfExtPrim n) (map mlfTm args)
+  mlfTm (NmConCase fc scrut alts mbDflt) =
+    mlfSwitch (mlfTm scrut) (map mlfConAlt alts) (mlfTm <$> mbDflt)
+  mlfTm (NmConstCase fc scrut alts mbDflt) =
+    mlfSwitch (mlfTm scrut) (map mlfConstAlt alts) (mlfTm <$> mbDflt)
 
 mlfBody : NamedDef -> Doc
 mlfBody (MkNmFun args rhs) =
