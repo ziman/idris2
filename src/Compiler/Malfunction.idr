@@ -27,16 +27,29 @@ import System.Info
 
 %default covering
 
+heXX : Int -> String
+heXX x = hd (x `div` 16) ++ hd (x `mod` 16)
+  where
+    hd : Int -> String
+    hd 10 = "A"
+    hd 11 = "B"
+    hd 12 = "C"
+    hd 13 = "D"
+    hd 14 = "E"
+    hd 15 = "F"
+    hd i = show i
+
 showChar : Char -> String -> String
 showChar '\\' = ("\\\\" ++)
+showChar '"' = ("\\\"" ++)
+showChar '\n' = ("\\n" ++)
 showChar c
-   = if c < chr 32 -- XXX
-        then (("\\x" ++ asHex (cast c) ++ ";") ++)
+   = if c < chr 32
+        then (("\\x" ++ heXX (cast c) ++ "") ++)
         else strCons c
 
 showString : List Char -> String -> String
 showString [] = id
-showString ('"'::cs) = ("\\\"" ++) . showString cs
 showString (c::cs) = showChar c . showString cs
 
 mlfString : String -> Doc
