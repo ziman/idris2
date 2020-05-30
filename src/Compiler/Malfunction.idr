@@ -155,6 +155,7 @@ mlfOp (GT IntegerType) [x,y] = sexp [text ">.ibig", x,y]
 
 mlfOp (Cast IntegerType IntType) [x] = sexp [text "convert.ibig.int", x]
 mlfOp (Cast IntType IntegerType) [x] = sexp [text "convert.int.ibig", x]
+mlfOp (Cast IntegerType StringType) [x] = mlfLibCall "Big_int.string_of_big_int" [x]
 
 mlfOp StrAppend [x,y] = mlfLibCall "Stdlib.^" [x,y]
 mlfOp Crash [_, msg] = mlfLibCall "Stdlib.failwith" [msg]
@@ -299,10 +300,13 @@ parameters (ldefs : SortedSet Name)
           (map (mlfConAlt scrutN) alts)
           (mlfConDflt . mlfTm <$> mbDflt)
     mlfTm (NmConCase fc scrut alts mbDflt) =
-      -- a complex scrutinee would have to be let-bound first
-      -- (because we may refer to it repeatedly in field projections)
-      -- let's just not support that for now
-      mlfError $ "non-variable constructor case scrutinee: " ++ show scrut
+      -- let-bind the scrutinee to avoid reevaluation
+      let scrutN = MN "scrut" 0
+        in mlfLet scrutN (mlfTm scrut) $
+            mlfSwitch
+              (mlfVar scrutN)
+              (map (mlfConAlt scrutN) alts)
+              (mlfConDflt . mlfTm <$> mbDflt)
     mlfTm (NmConstCase fc scrut alts mbDflt) =
       case the (Either Constant (List Doc)) (traverse mlfConstAlt alts) of
         Left c => mlfError $ "can't generate pattern for " ++ show c
