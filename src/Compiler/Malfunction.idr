@@ -256,6 +256,13 @@ mutual
   mlfTm (NmConstCase fc scrut alts mbDflt) =
     mlfSwitch (mlfTm scrut) (map mlfConstAlt alts) (mlfConstDflt . mlfTm <$> mbDflt)
 
+ccLibFun : List String -> Maybe String
+ccLibFun [] = Nothing
+ccLibFun (cc :: ccs) =
+  if substr 0 3 cc == "ML:"
+    then Just (substr 3 (length cc) cc)
+    else ccLibFun ccs
+
 mlfBody : NamedDef -> Doc
 mlfBody (MkNmFun args rhs) =
   mlfLam args (mlfTm rhs)
@@ -267,7 +274,12 @@ mlfBody (MkNmCon mbTag arity mbNewtype) =
     args = [UN $ "arg" ++ show i | i <- [0..cast {to = Int} arity-1]]
 
 mlfBody (MkNmForeign ccs fargs cty) =
-    mlfLam args (mlfError $ "unimplemented foreign: " ++ show (MkNmForeign ccs fargs cty))
+  mlfLam args $
+    case ccLibFun ccs of
+      Just fn =>
+        mlfLibCall fn (map mlfVar args)
+      Nothing =>
+        mlfError $ "unimplemented foreign: " ++ show (MkNmForeign ccs fargs cty)
   where
     arity : Int
     arity = cast $ length fargs
