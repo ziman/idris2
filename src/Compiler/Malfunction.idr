@@ -131,7 +131,31 @@ mlfBlock (Just tag) args = parens $
   $$ indentBlock args
 
 mlfOp : PrimFn arity -> Vect arity Doc -> Doc
-mlfOp (Sub IntType) [x,y] = mlfApply (text "-.int") [x,y]
+mlfOp (Add IntType) [x,y] = sexp [text "+.int", x,y]
+mlfOp (Sub IntType) [x,y] = sexp [text "-.int", x,y]
+mlfOp (Mul IntType) [x,y] = sexp [text "*.int", x,y]
+mlfOp (Div IntType) [x,y] = sexp [text "/.int", x,y]
+
+mlfOp (LT IntType) [x,y] = sexp [text "<.int", x,y]
+mlfOp (LTE IntType) [x,y] = sexp [text "<=.int", x,y]
+mlfOp (EQ IntType) [x,y] = sexp [text "==.int", x,y]
+mlfOp (GTE IntType) [x,y] = sexp [text ">=.int", x,y]
+mlfOp (GT IntType) [x,y] = sexp [text ">.int", x,y]
+
+mlfOp (Add IntegerType) [x,y] = sexp [text "+.ibig", x,y]
+mlfOp (Sub IntegerType) [x,y] = sexp [text "-.ibig", x,y]
+mlfOp (Mul IntegerType) [x,y] = sexp [text "*.ibig", x,y]
+mlfOp (Div IntegerType) [x,y] = sexp [text "/.ibig", x,y]
+
+mlfOp (LT IntegerType) [x,y] = sexp [text "<.ibig", x,y]
+mlfOp (LTE IntegerType) [x,y] = sexp [text "<=.ibig", x,y]
+mlfOp (EQ IntegerType) [x,y] = sexp [text "==.ibig", x,y]
+mlfOp (GTE IntegerType) [x,y] = sexp [text ">=.ibig", x,y]
+mlfOp (GT IntegerType) [x,y] = sexp [text ">.ibig", x,y]
+
+mlfOp (Cast IntegerType IntType) [x] = sexp [text "convert.ibig.int", x]
+mlfOp (Cast IntType IntegerType) [x] = sexp [text "convert.int.ibig", x]
+
 mlfOp StrAppend [x,y] = mlfLibCall "Stdlib.^" [x,y]
 mlfOp Crash [_, msg] = mlfLibCall "Stdlib.failwith" [msg]
 mlfOp BelieveMe [_, _, x] = x
@@ -182,7 +206,7 @@ mlfExtPrim : Name -> Doc
 mlfExtPrim n = mlfDebug n
 
 mlfConstant : Constant -> Doc
-mlfConstant (I x) = show x <+> text ".i64"
+mlfConstant (I x) = show x
 mlfConstant (BI x) = show x <+> text ".ibig"
 mlfConstant (Str s) = mlfString s
 mlfConstant (Ch x) = show (ord x)
@@ -245,13 +269,11 @@ parameters (ldefs : SortedSet Name)
       sexp [text "tag", show tag]
       $$ indent (bindFieldProjs scrutN args $ mlfTm rhs)
 
-    mlfConstAlt : NamedConstAlt -> Doc
-    mlfConstAlt (MkNConstAlt (BI x) rhs) =
-       parens (show x <++> mlfTm rhs)
+    mlfConstAlt : NamedConstAlt -> Either Constant Doc
     mlfConstAlt (MkNConstAlt (I x) rhs) =
-       parens (show x <++> mlfTm rhs)
+      Right $ parens (show x <++> mlfTm rhs)
     mlfConstAlt (MkNConstAlt c rhs) =
-       parens (text "_" <++> mlfError ("can't generate pattern for " ++ show c))
+      Left c
 
     mlfTm : NamedCExp -> Doc
     mlfTm (NmLocal fc n) = mlfVar n
@@ -282,7 +304,10 @@ parameters (ldefs : SortedSet Name)
       -- let's just not support that for now
       mlfError $ "non-variable constructor case scrutinee: " ++ show scrut
     mlfTm (NmConstCase fc scrut alts mbDflt) =
-      mlfSwitch (mlfTm scrut) (map mlfConstAlt alts) (mlfConstDflt . mlfTm <$> mbDflt)
+      case the (Either Constant (List Doc)) (traverse mlfConstAlt alts) of
+        Left c => mlfError $ "can't generate pattern for " ++ show c
+        Right alts' =>
+          mlfSwitch (mlfTm scrut) alts' (mlfConstDflt . mlfTm <$> mbDflt)
 
   mlfBody : NamedDef -> Doc
   mlfBody (MkNmFun args rhs) =
