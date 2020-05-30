@@ -4,7 +4,6 @@ import Compiler.Common
 import Compiler.CompileExpr
 import Compiler.Inline
 import Compiler.Scheme.Common
-import Compiler.TopoSort
 
 import Core.Context
 import Core.Directory
@@ -217,8 +216,12 @@ mutual
     sexp [sexp [text "tag", show tag], mlfTm rhs]
 
   mlfConstAlt : NamedConstAlt -> Doc
+  mlfConstAlt (MkNConstAlt (BI x) rhs) =
+     parens (show x <++> mlfTm rhs)
+  mlfConstAlt (MkNConstAlt (I x) rhs) =
+     parens (show x <++> mlfTm rhs)
   mlfConstAlt (MkNConstAlt c rhs) =
-    parens (mlfConstant c <++> mlfTm rhs)
+     parens (text "_" <++> mlfError ("can't generate pattern for " ++ show c))
 
   mlfTm : NamedCExp -> Doc
   mlfTm (NmLocal fc n) = mlfVar n
@@ -257,6 +260,11 @@ mlfDef (n, fc, body) =
   parens (mlfVar n $$ indent (mlfBody body))
   $$ text ""
 
+mlfRec : List Doc -> Doc
+mlfRec defs = parens $
+  text "rec"
+  $$ indentBlock defs
+
 compileToMLF : Ref Ctxt Defs ->
                ClosedTerm -> (outfile : String) -> Core ()
 compileToMLF c tm outfile
@@ -276,7 +284,7 @@ compileToMLF c tm outfile
          let code = render " " $ parens (
                 text "module"
                 $$ indent (
-                     vcat defsMlf
+                     mlfRec defsMlf
                   $$ parens (text "_" <++> mainMlf)
                   $$ text ""
                   $$ parens (text "export")
