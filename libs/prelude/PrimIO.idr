@@ -123,7 +123,10 @@ prim__getString : Ptr String -> String
 
 %foreign "C:idris2_getStr,libidris2_support"
 prim__getStr : PrimIO String
-%foreign "C:idris2_putStr,libidris2_support"
+
+%foreign
+    "C:idris2_putStr,libidris2_support"
+    "ML:Stdlib.print_string"
 prim__putStr : String -> PrimIO ()
 
 ||| Output a string to stdout without a trailing newline.
