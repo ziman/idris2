@@ -67,8 +67,8 @@ mlfError msg = mlfLibCall "Stdlib.failwith" [mlfString msg]
 mlfDebug : Show a => a -> Doc
 mlfDebug = mlfError . show
 
-mlfName : Name -> Doc
-mlfName = text . pack . sanitise . unpack . show
+sanitise : String -> String
+sanitise = pack . concatMap sanitise' . unpack
   where
     san : Char -> Bool
     san c =
@@ -76,15 +76,15 @@ mlfName = text . pack . sanitise . unpack . show
         || ('a' <= c && c <= 'z')
         || ('0' <= c && c <= '9')
 
-    sanitise : List Char -> List Char
-    sanitise [] = []
-    sanitise (c :: cs) =
-      case (san c, sanitise cs) of
-        (True,  [])         => [c]
-        (False, [])         => []
-        (True,   k  :: cs') =>  c  ::  k  :: cs'
-        (False, '-' :: cs') =>        '-' :: cs'
-        (False,  k  :: cs') => '-' ::  k  :: cs'
+    sanitise' : Char -> List Char
+    sanitise' c =
+      if san c
+        then [c]
+        else '-' :: unpack (show $ ord c) ++ ['-']
+
+mlfName : Name -> Doc
+mlfName (MN n i) = text (sanitise n) <+> show i
+mlfName n = text . sanitise . show $ n
 
 mlfVar : Name -> Doc
 mlfVar n = text "$" <+> mlfName n
@@ -131,6 +131,7 @@ mlfBlock (Just tag) args = parens $
   $$ indentBlock args
 
 mlfOp : PrimFn arity -> Vect arity Doc -> Doc
+mlfOp StrAppend [x,y] = mlfLibCall "Stdlib.^" [x,y]
 mlfOp Crash [_, msg] = mlfLibCall "Stdlib.failwith" [msg]
 mlfOp BelieveMe [_, _, x] = x
 mlfOp op args = mlfError $ "unimplemented primop: " ++ show op
