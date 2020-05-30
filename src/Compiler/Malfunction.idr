@@ -261,10 +261,19 @@ mlfBody (MkNmFun args rhs) =
   mlfLam args (mlfTm rhs)
 
 mlfBody (MkNmCon mbTag arity mbNewtype) =
-  mlfLazy $ mlfDebug (MkNmCon mbTag arity mbNewtype)
+    mlfLam args (mlfBlock mbTag $ map mlfVar args)
+  where
+    args : List Name
+    args = [UN $ "arg" ++ show i | i <- [0..cast {to = Int} arity-1]]
 
 mlfBody (MkNmForeign ccs fargs cty) =
-  mlfLazy $ mlfDebug (MkNmForeign ccs fargs cty)
+    mlfLam args (mlfError $ "unimplemented foreign: " ++ show (MkNmForeign ccs fargs cty))
+  where
+    arity : Int
+    arity = cast $ length fargs
+
+    args : List Name
+    args = [UN $ "arg" ++ show i | i <- [0..arity-1]]
 
 mlfBody (MkNmError err) =
   mlfTm err
