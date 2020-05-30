@@ -19,6 +19,7 @@ import Data.Maybe
 import Data.NameMap
 import Data.Strings
 import Data.Vect
+import Data.SortedSet
 
 import System
 import System.Directory
@@ -125,14 +126,15 @@ mlfLet n val rhs = parens $
     , rhs
     ]
 
+mlfLazy : Doc -> Doc
+mlfLazy doc = sexp [text "lazy", doc]
+
 mlfLam : List Name -> Doc -> Doc
+mlfLam [] rhs = mlfLazy rhs
 mlfLam args rhs =
   parens $
     text "lambda" <++> sexp (map mlfVar args)
     $$ indent rhs
-
-mlfLazy : Doc -> Doc
-mlfLazy doc = sexp [text "lazy", doc]
 
 mlfForce : Doc -> Doc
 mlfForce doc = sexp [text "force", doc]
@@ -208,6 +210,9 @@ mlfConstant DoubleType = mlfString "TyDouble"
 mlfConstant WorldType = mlfString "TyWorld"
 
 mlfSwitch : Doc -> List Doc -> Maybe Doc -> Doc
+mlfSwitch scrut [] Nothing =
+  mlfError $ "case with no RHS"
+mlfSwitch scrut [] (Just dflt) = dflt
 mlfSwitch scrut alts (Just dflt) = parens $
   text "switch" <++> scrut
   $$ indent (vcat alts $$ dflt)
@@ -222,39 +227,21 @@ mlfConDflt rhs = sexp [sexp [text "tag", text "_"], rhs]
 mlfConstDflt : Doc -> Doc
 mlfConstDflt rhs = sexp [text "_", rhs]
 
-mutual
-  mlfConAlt : NamedConAlt -> Doc
-  mlfConAlt (MkNConAlt n Nothing args rhs) =
-    mlfError $ "no tag for mlfConAlt: " ++ show n
-  mlfConAlt (MkNConAlt n (Just tag) args rhs) =
-    sexp [sexp [text "tag", show tag], mlfTm rhs]
+mlfField : Name -> Int -> Doc
+mlfField n i = sexp [text "field", show i, mlfVar n]
 
-  mlfConstAlt : NamedConstAlt -> Doc
-  mlfConstAlt (MkNConstAlt (BI x) rhs) =
-     parens (show x <++> mlfTm rhs)
-  mlfConstAlt (MkNConstAlt (I x) rhs) =
-     parens (show x <++> mlfTm rhs)
-  mlfConstAlt (MkNConstAlt c rhs) =
-     parens (text "_" <++> mlfError ("can't generate pattern for " ++ show c))
+number : Int -> List a -> List (Int, a)
+number i [] = []
+number i (x :: xs) = (i,x) :: number (i+1) xs
 
-  mlfTm : NamedCExp -> Doc
-  mlfTm (NmLocal fc n) = mlfVar n
-  mlfTm (NmRef fc n) = mlfVar n
-  mlfTm (NmLam fc n rhs) = mlfLam [n] (mlfTm rhs)
-  mlfTm (NmLet fc n val rhs) = mlfLet n (mlfTm val) (mlfTm rhs)
-  mlfTm (NmApp fc f args) = mlfApply (mlfTm f) (map mlfTm args)
-  mlfTm (NmCon fc cn mbTag args) = mlfBlock mbTag (map mlfTm args)
-  mlfTm (NmCrash fc msg) = mlfError msg
-  mlfTm (NmForce fc rhs) = mlfForce (mlfTm rhs)
-  mlfTm (NmDelay fc rhs) = mlfLazy (mlfTm rhs)
-  mlfTm (NmErased fc) = mlfString "erased"
-  mlfTm (NmPrimVal ft x) = mlfConstant x
-  mlfTm (NmOp fc op args) = mlfOp op (map mlfTm args)
-  mlfTm (NmExtPrim fc n args) = mlfApply (mlfExtPrim n) (map mlfTm args)
-  mlfTm (NmConCase fc scrut alts mbDflt) =
-    mlfSwitch (mlfTm scrut) (map mlfConAlt alts) (mlfConDflt . mlfTm <$> mbDflt)
-  mlfTm (NmConstCase fc scrut alts mbDflt) =
-    mlfSwitch (mlfTm scrut) (map mlfConstAlt alts) (mlfConstDflt . mlfTm <$> mbDflt)
+bindFieldProjs : Name -> List Name -> Doc -> Doc
+bindFieldProjs scrutN [] rhs = rhs
+bindFieldProjs scrutN ns rhs = parens $
+  text "let"
+  $$ indent (
+    vcat [sexp [mlfVar n, mlfField scrutN i] | (i, n) <- number 0 ns]
+    $$ rhs
+  )
 
 ccLibFun : List String -> Maybe String
 ccLibFun [] = Nothing
@@ -263,39 +250,94 @@ ccLibFun (cc :: ccs) =
     then Just (substr 3 (length cc) cc)
     else ccLibFun ccs
 
-mlfBody : NamedDef -> Doc
-mlfBody (MkNmFun args rhs) =
-  mlfLam args (mlfTm rhs)
+parameters (ldefs : SortedSet Name)
+  mutual
+    mlfConAlt : Name -> NamedConAlt -> Doc
+    mlfConAlt scrutN (MkNConAlt n Nothing args rhs) =
+      mlfError $ "no tag for mlfConAlt: " ++ show n
+    mlfConAlt scrutN (MkNConAlt cn (Just tag) args rhs) = parens $
+      sexp [text "tag", show tag]
+      $$ indent (bindFieldProjs scrutN args $ mlfTm rhs)
 
-mlfBody (MkNmCon mbTag arity mbNewtype) =
-    mlfLam args (mlfBlock mbTag $ map mlfVar args)
-  where
-    args : List Name
-    args = [UN $ "arg" ++ show i | i <- [0..cast {to = Int} arity-1]]
+    mlfConstAlt : NamedConstAlt -> Doc
+    mlfConstAlt (MkNConstAlt (BI x) rhs) =
+       parens (show x <++> mlfTm rhs)
+    mlfConstAlt (MkNConstAlt (I x) rhs) =
+       parens (show x <++> mlfTm rhs)
+    mlfConstAlt (MkNConstAlt c rhs) =
+       parens (text "_" <++> mlfError ("can't generate pattern for " ++ show c))
 
-mlfBody (MkNmForeign ccs fargs cty) =
-  mlfLam (map fst args) $
-    case ccLibFun ccs of
-      Just fn =>
-        mlfLibCall fn (map (mlfVar . fst) $ filter snd args)
-      Nothing =>
-        mlfError $ "unimplemented foreign: " ++ show (MkNmForeign ccs fargs cty)
-  where
-    mkArgs : Int -> List CFType -> List (Name, Bool)
-    mkArgs i [] = []
-    mkArgs i (CFWorld :: cs) = (MN "farg" i, False) :: mkArgs i cs
-    mkArgs i (c :: cs) = (MN "farg" i, True) :: mkArgs (i + 1) cs
+    mlfTm : NamedCExp -> Doc
+    mlfTm (NmLocal fc n) = mlfVar n
+    mlfTm (NmRef fc n) =
+      if contains n ldefs
+        then mlfForce (mlfVar n)
+        else mlfVar n
+    mlfTm (NmLam fc n rhs) = mlfLam [n] (mlfTm rhs)
+    mlfTm (NmLet fc n val rhs) = mlfLet n (mlfTm val) (mlfTm rhs)
+    mlfTm (NmApp fc f args) = mlfApply (mlfTm f) (map mlfTm args)
+    mlfTm (NmCon fc cn mbTag args) = mlfBlock mbTag (map mlfTm args)
+    mlfTm (NmCrash fc msg) = mlfError msg
+    mlfTm (NmForce fc rhs) = mlfForce (mlfTm rhs)
+    mlfTm (NmDelay fc rhs) = mlfLazy (mlfTm rhs)
+    mlfTm (NmErased fc) = mlfString "erased"
+    mlfTm (NmPrimVal ft x) = mlfConstant x
+    mlfTm (NmOp fc op args) = mlfOp op (map mlfTm args)
+    mlfTm (NmExtPrim fc n args) = mlfApply (mlfExtPrim n) (map mlfTm args)
+    mlfTm (NmConCase fc (NmLocal _ scrutN) alts mbDflt) =
+      mlfSwitch
+          (mlfVar scrutN)
+          (map (mlfConAlt scrutN) alts)
+          (mlfConDflt . mlfTm <$> mbDflt)
+    mlfTm (NmConCase fc scrut alts mbDflt) =
+      -- a complex scrutinee would have to be let-bound first
+      -- (because we may refer to it repeatedly in field projections)
+      -- let's just not support that for now
+      mlfError $ "non-variable constructor case scrutinee: " ++ show scrut
+    mlfTm (NmConstCase fc scrut alts mbDflt) =
+      mlfSwitch (mlfTm scrut) (map mlfConstAlt alts) (mlfConstDflt . mlfTm <$> mbDflt)
 
-    args : List (Name, Bool)
-    args = mkArgs 0 fargs
+  mlfBody : NamedDef -> Doc
+  mlfBody (MkNmFun args rhs) =
+    mlfLam args (mlfTm rhs)
 
-mlfBody (MkNmError err) =
-  mlfTm err
+  mlfBody (MkNmCon mbTag arity mbNewtype) =
+      mlfLam args (mlfBlock mbTag $ map mlfVar args)
+    where
+      args : List Name
+      args = [UN $ "arg" ++ show i | i <- [0..cast {to = Int} arity-1]]
 
-mlfDef : (Name, FC, NamedDef) -> Doc
-mlfDef (n, fc, body) =
-  parens (mlfVar n $$ indent (mlfBody body))
-  $$ text ""
+  mlfBody (MkNmForeign ccs fargs cty) =
+    mlfLam (map fst args) $
+      case ccLibFun ccs of
+        Just fn =>
+          mlfLibCall fn (map (mlfVar . fst) $ filter snd args)
+        Nothing =>
+          mlfError $ "unimplemented foreign: " ++ show (MkNmForeign ccs fargs cty)
+    where
+      mkArgs : Int -> List CFType -> List (Name, Bool)
+      mkArgs i [] = []
+      mkArgs i (CFWorld :: cs) = (MN "farg" i, False) :: mkArgs i cs
+      mkArgs i (c :: cs) = (MN "farg" i, True) :: mkArgs (i + 1) cs
+
+      args : List (Name, Bool)
+      args = mkArgs 0 fargs
+
+  mlfBody (MkNmError err) =
+    mlfTm err
+
+  mlfDef : (Name, FC, NamedDef) -> Doc
+  mlfDef (n, fc, body) =
+    parens (mlfVar n $$ indent (mlfBody body))
+    $$ text ""
+
+lazyDefs : List (Name, FC, NamedDef) -> SortedSet Name
+lazyDefs [] = empty
+lazyDefs ((n,_,MkNmFun [] rhs) :: defs) = insert n $ lazyDefs defs
+lazyDefs ((n,_,MkNmCon tag Z nt) :: defs) = insert n $ lazyDefs defs
+lazyDefs ((n,_,MkNmForeign ccs [] x) :: defs) = insert n $ lazyDefs defs
+lazyDefs ((n,_,MkNmError x) :: defs) = insert n $ lazyDefs defs
+lazyDefs (_ :: defs) = lazyDefs defs
 
 mlfRec : List Doc -> Doc
 mlfRec defs = parens $
@@ -309,6 +351,7 @@ compileToMLF c tm outfile
          let ndefs = namedDefs cdata
          -- let tags = nameTags cdata
          let ctm = forget (mainExpr cdata)
+         let ldefs = lazyDefs ndefs
 
          {-
          defs <- get Ctxt
@@ -316,8 +359,8 @@ compileToMLF c tm outfile
          s <- newRef {t = List String} Structs []
          -}
 
-         defsMlf <- traverse (pure . mlfDef) ndefs
-         mainMlf <- pure $ mlfTm ctm
+         defsMlf <- traverse (pure . mlfDef ldefs) ndefs
+         mainMlf <- pure $ mlfTm ldefs ctm
          let code = render " " $ parens (
                 text "module"
                 $$ indent (
