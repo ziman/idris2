@@ -105,7 +105,12 @@ mlfVar n = text "$" <+> mlfName n
 -}
 
 mlfLet : Name -> Doc -> Doc -> Doc
-mlfLet n val rhs = sexp [text "let", sexp [mlfVar n, val], rhs]
+mlfLet n val rhs = parens $
+  text "let"
+  $$ indentBlock
+    [ sexp [mlfVar n, val]
+    , rhs
+    ]
 
 mlfLam : List Name -> Doc -> Doc
 mlfLam args rhs =
@@ -191,12 +196,17 @@ mlfConstant WorldType = mlfString "TyWorld"
 mlfSwitch : Doc -> List Doc -> Maybe Doc -> Doc
 mlfSwitch scrut alts (Just dflt) = parens $
   text "switch" <++> scrut
-  $$ indentBlock alts
-  $$ sexp [text "_", sexp [text "tag", text "_"], dflt]
+  $$ indent (vcat alts $$ dflt)
 
 mlfSwitch scrut alts Nothing = parens $
   text "switch" <++> scrut
-  $$ indentBlock alts
+  $$ indent (vcat alts)
+
+mlfConDflt : Doc -> Doc
+mlfConDflt rhs = sexp [sexp [text "tag", text "_"], rhs]
+
+mlfConstDflt : Doc -> Doc
+mlfConstDflt rhs = sexp [text "_", rhs]
 
 mutual
   mlfConAlt : NamedConAlt -> Doc
@@ -224,9 +234,9 @@ mutual
   mlfTm (NmOp fc op args) = mlfOp op (map mlfTm args)
   mlfTm (NmExtPrim fc n args) = mlfApply (mlfExtPrim n) (map mlfTm args)
   mlfTm (NmConCase fc scrut alts mbDflt) =
-    mlfSwitch (mlfTm scrut) (map mlfConAlt alts) (mlfTm <$> mbDflt)
+    mlfSwitch (mlfTm scrut) (map mlfConAlt alts) (mlfConDflt . mlfTm <$> mbDflt)
   mlfTm (NmConstCase fc scrut alts mbDflt) =
-    mlfSwitch (mlfTm scrut) (map mlfConstAlt alts) (mlfTm <$> mbDflt)
+    mlfSwitch (mlfTm scrut) (map mlfConstAlt alts) (mlfConstDflt . mlfTm <$> mbDflt)
 
 mlfBody : NamedDef -> Doc
 mlfBody (MkNmFun args rhs) =
