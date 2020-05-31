@@ -1,3 +1,4 @@
+(* test code *)
 external c_hello : int -> string = "c_hello"
 
 let hello_world (_ : unit) : string =
@@ -7,3 +8,7 @@ let hello_world (_ : unit) : string =
     print_string "returning from ocaml";
     print_newline ();
     secret
+
+(* actual support code *)
+
+let get_args (_ : unit) : string list = Array.to_list Sys.argv
