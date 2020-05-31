@@ -307,6 +307,9 @@ parameters (ldefs : SortedSet Name)
     mlfConAlt : Name -> NamedConAlt -> Doc
     mlfConAlt scrutN (MkNConAlt n Nothing args rhs) =
       mlfError $ "no tag for mlfConAlt: " ++ show n
+    mlfConAlt scrutN (MkNConAlt cn (Just tag) [] rhs) =
+      -- nullary constructors compile to ints in ocaml
+      sexp [show tag, mlfTm rhs]
     mlfConAlt scrutN (MkNConAlt cn (Just tag) args rhs) = parens $
       sexp [text "tag", show tag]
       $$ indent (bindFieldProjs scrutN args $ mlfTm rhs)
@@ -326,6 +329,8 @@ parameters (ldefs : SortedSet Name)
     mlfTm (NmLam fc n rhs) = mlfLam [n] (mlfTm rhs)
     mlfTm (NmLet fc n val rhs) = mlfLet n (mlfTm val) (mlfTm rhs)
     mlfTm (NmApp fc f args) = mlfApply (mlfTm f) (map mlfTm args)
+    mlfTm (NmCon fc cn Nothing []) = mlfError $ "no constructor tag"
+    mlfTm (NmCon fc cn (Just tag) []) = show tag
     mlfTm (NmCon fc cn mbTag args) = mlfBlock mbTag (map mlfTm args)
     mlfTm (NmCrash fc msg) = mlfError msg
     mlfTm (NmForce fc rhs) = mlfForce (mlfTm rhs)
