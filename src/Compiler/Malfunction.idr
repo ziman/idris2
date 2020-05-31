@@ -215,7 +215,10 @@ mlfConstant (I x) = show x
 mlfConstant (BI x) = show x <+> text ".ibig"
 mlfConstant (Str s) = mlfString s
 mlfConstant (Ch x) = show (ord x)
-mlfConstant (Db x) = show x
+mlfConstant (Db x) =
+  case filter (== '.') (unpack $ Prelude.show x) of
+    [] => Pretty.show x <+> text ".0"
+    _  => Pretty.show x
 
 mlfConstant WorldVal = show 0
 
@@ -236,8 +239,8 @@ mlfConstPat c = Just $ mlfConstant c
 mlfConstEqCheck : Doc -> Constant -> Doc
 -- these have special comparison ops
 mlfConstEqCheck x (BI y) = sexp [text "==.ibig", x, mlfConstant (BI y)]
-mlfConstEqCheck x (Str y) = mlfLibCall "String.equal" [x, mlfConstant (Str y)]
 mlfConstEqCheck x (Db y) = sexp [text "==.f64", x, mlfConstant (Db y)]
+mlfConstEqCheck x (Str y) = mlfLibCall "String.equal" [x, mlfConstant (Str y)]
 
 -- everything else is represented as ints
 mlfConstEqCheck x y = sexp [text "==.int", x, mlfConstant y]
@@ -285,6 +288,12 @@ ccLibFun (cc :: ccs) =
 
 parameters (ldefs : SortedSet Name)
   mutual
+    bindScrut : NamedCExp -> (Name -> Doc) -> Doc
+    bindScrut (NmLocal _ n) rhs = rhs n
+    bindScrut scrut rhs =
+      let scrutN = MN "scrut" 0
+        in mlfLet scrutN (mlfTm scrut) (rhs scrutN)
+
     mlfEqChain : Name -> Maybe Doc -> List NamedConstAlt -> Doc
     mlfEqChain scrutN Nothing [] = mlfError "impossible eq chain"
     mlfEqChain scrutN (Just dflt) [] = dflt
@@ -325,19 +334,12 @@ parameters (ldefs : SortedSet Name)
     mlfTm (NmPrimVal ft x) = mlfConstant x
     mlfTm (NmOp fc op args) = mlfOp op (map mlfTm args)
     mlfTm (NmExtPrim fc n args) = mlfApply (mlfExtPrim n) (map mlfTm args)
-    mlfTm (NmConCase fc (NmLocal _ scrutN) alts mbDflt) =
-      mlfSwitch
+    mlfTm (NmConCase fc scrut alts mbDflt) =
+      bindScrut scrut $ \scrutN =>
+        mlfSwitch
           (mlfVar scrutN)
           (map (mlfConAlt scrutN) alts)
           (mlfConDflt . mlfTm <$> mbDflt)
-    mlfTm (NmConCase fc scrut alts mbDflt) =
-      -- let-bind the scrutinee to avoid reevaluation
-      let scrutN = MN "scrut" 0
-        in mlfLet scrutN (mlfTm scrut) $
-            mlfSwitch
-              (mlfVar scrutN)
-              (map (mlfConAlt scrutN) alts)
-              (mlfConDflt . mlfTm <$> mbDflt)
     mlfTm (NmConstCase fc scrut alts mbDflt) =
       case the (Maybe (List Doc)) (traverse mlfConstAlt alts) of
         -- all patterns can be expressed efficiently
@@ -346,9 +348,8 @@ parameters (ldefs : SortedSet Name)
 
         -- we need to use a chain of if-equals tests
         Nothing =>
-          let scrutN = MN "scrut" 0
-            in mlfLet scrutN (mlfTm scrut) $
-              mlfEqChain scrutN (mlfTm <$> mbDflt) alts
+          bindScrut scrut $ \scrutN =>
+            mlfEqChain scrutN (mlfTm <$> mbDflt) alts
 
   mlfBody : NamedDef -> Doc
   mlfBody (MkNmFun args rhs) =
