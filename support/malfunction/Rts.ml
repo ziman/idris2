@@ -22,13 +22,15 @@ module File = struct
     type file_ptr =
         | FileR of in_channel
         | FileW of out_channel
+        | FileNull of string
 
     let rec fopen (path : string) (mode : string) (_ : int) : file_ptr =
-        match mode with
-        | "r" -> FileR (open_in path)
-        | "w" -> FileW (open_out path)
-        | "rb" -> FileR (open_in_bin path)
-        | "wb" -> FileW (open_out_bin path)
-        | _ -> failwith ("unknown file open mode: " ^ mode)
-    ;;
+        try
+            match mode with
+            | "r" -> FileR (open_in path)
+            | "w" -> FileW (open_out path)
+            | "rb" -> FileR (open_in_bin path)
+            | "wb" -> FileW (open_out_bin path)
+            | _ -> failwith ("unknown file open mode: " ^ mode)
+        with Sys_error msg -> FileNull msg
 end
