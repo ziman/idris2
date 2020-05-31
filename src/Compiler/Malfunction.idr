@@ -363,9 +363,9 @@ mlfRec defs = parens $
   text "rec"
   $$ indentBlock defs
 
-compileToMLF : Ref Ctxt Defs ->
+generateMlf : Ref Ctxt Defs ->
                ClosedTerm -> (outfile : String) -> Core ()
-compileToMLF c tm outfile
+generateMlf c tm outfile
     = do cdata <- getCompileData Cases tm
          let ndefs = namedDefs cdata
          let ctm = forget (mainExpr cdata)
@@ -392,10 +392,25 @@ compileToMLF c tm outfile
 compileExpr : Ref Ctxt Defs -> (execDir : String) ->
               ClosedTerm -> (outfile : String) -> Core (Maybe String)
 compileExpr c execDir tm outfile
-    = do let mlf = execDir </> outfile <.> "mlf"
-             exe = execDir </> outfile
-         compileToMLF c tm mlf
-         let cmd = "malfunction compile -o " ++ exe ++ " " ++ mlf
+    = do let bld = execDir </> "build"
+         coreLift $ mkdirAll bld
+
+         let copy = \fn => with Core.Core.(>>=) do
+               src <- readDataFile ("malfunction" </> fn)
+               coreLift $ writeFile (bld </> fn) src
+         traverse_ copy $ with Prelude.Nil ["Rts.mli", "Rts.ml", "rts.c"]
+
+         generateMlf c tm (bld </> "Main.mlf")
+
+         let cmd = unwords
+                [ "(cd " ++ bld
+                , "&& ocamlfind opt -c Rts.mli"
+                , "&& ocamlfind opt -c Rts.ml"
+                , "&& cc -c rts.c -I $(ocamlc -where)"
+                , "&& malfunction cmx Main.mlf"
+                , "&& ocamlfind opt -package zarith -linkpkg Rts.cmx Main.cmx rts.o -o ../" ++ outfile
+                , ")"
+                ]
          ok <- coreLift $ system cmd
          if ok == 0
             then pure (Just (execDir </> outfile))
