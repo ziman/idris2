@@ -216,13 +216,31 @@ mlfConstant (BI x) = show x <+> text ".ibig"
 mlfConstant (Str s) = mlfString s
 mlfConstant (Ch x) = show (ord x)
 mlfConstant (Db x) = show x
-mlfConstant WorldVal = mlfString "%World"
-mlfConstant IntType = mlfString "TyInt"
-mlfConstant IntegerType = mlfString "TyInteger"
-mlfConstant StringType = mlfString "TyString"
-mlfConstant CharType = mlfString "TyChar"
-mlfConstant DoubleType = mlfString "TyDouble"
-mlfConstant WorldType = mlfString "TyWorld"
+
+mlfConstant WorldVal = show 0
+
+mlfConstant IntType = show 0
+mlfConstant IntegerType = show 1
+mlfConstant StringType = show 2
+mlfConstant CharType = show 3
+mlfConstant DoubleType = show 4
+mlfConstant WorldType = show 5
+
+mlfConstPat : Constant -> Maybe Doc
+-- malfunction cannot switch on these
+mlfConstPat (BI x) = Nothing
+mlfConstPat (Str s) = Nothing
+mlfConstPat (Db x) = Nothing
+mlfConstPat c = Just $ mlfConstant c
+
+mlfConstEqCheck : Doc -> Constant -> Doc
+-- these have special comparison ops
+mlfConstEqCheck x (BI y) = sexp [text "==.ibig", x, mlfConstant (BI y)]
+mlfConstEqCheck x (Str y) = mlfLibCall "String.equal" [x, mlfConstant (Str y)]
+mlfConstEqCheck x (Db y) = sexp [text "==.f64", x, mlfConstant (Db y)]
+
+-- everything else is represented as ints
+mlfConstEqCheck x y = sexp [text "==.int", x, mlfConstant y]
 
 mlfSwitch : Doc -> List Doc -> Maybe Doc -> Doc
 mlfSwitch scrut [] Nothing =
@@ -267,6 +285,16 @@ ccLibFun (cc :: ccs) =
 
 parameters (ldefs : SortedSet Name)
   mutual
+    mlfEqChain : Name -> Maybe Doc -> List NamedConstAlt -> Doc
+    mlfEqChain scrutN Nothing [] = mlfError "impossible eq chain"
+    mlfEqChain scrutN (Just dflt) [] = dflt
+    mlfEqChain scrutN mbDflt (MkNConstAlt c rhs :: alts) = parens $
+      text "if" <++> mlfConstEqCheck (mlfVar scrutN) c
+      $$ indent (
+        mlfTm rhs
+        $$ mlfEqChain scrutN mbDflt alts
+      )
+
     mlfConAlt : Name -> NamedConAlt -> Doc
     mlfConAlt scrutN (MkNConAlt n Nothing args rhs) =
       mlfError $ "no tag for mlfConAlt: " ++ show n
@@ -274,11 +302,11 @@ parameters (ldefs : SortedSet Name)
       sexp [text "tag", show tag]
       $$ indent (bindFieldProjs scrutN args $ mlfTm rhs)
 
-    mlfConstAlt : NamedConstAlt -> Either Constant Doc
-    mlfConstAlt (MkNConstAlt (I x) rhs) =
-      Right $ parens (show x <++> mlfTm rhs)
+    mlfConstAlt : NamedConstAlt -> Maybe Doc
     mlfConstAlt (MkNConstAlt c rhs) =
-      Left c
+      case mlfConstPat c of
+        Just pat => Just $ parens (pat <++> mlfTm rhs)
+        Nothing => Nothing
 
     mlfTm : NamedCExp -> Doc
     mlfTm (NmLocal fc n) = mlfVar n
@@ -311,10 +339,16 @@ parameters (ldefs : SortedSet Name)
               (map (mlfConAlt scrutN) alts)
               (mlfConDflt . mlfTm <$> mbDflt)
     mlfTm (NmConstCase fc scrut alts mbDflt) =
-      case the (Either Constant (List Doc)) (traverse mlfConstAlt alts) of
-        Left c => mlfError $ "can't generate pattern for " ++ show c
-        Right alts' =>
+      case the (Maybe (List Doc)) (traverse mlfConstAlt alts) of
+        -- all patterns can be expressed efficiently
+        Just alts' =>
           mlfSwitch (mlfTm scrut) alts' (mlfConstDflt . mlfTm <$> mbDflt)
+
+        -- we need to use a chain of if-equals tests
+        Nothing =>
+          let scrutN = MN "scrut" 0
+            in mlfLet scrutN (mlfTm scrut) $
+              mlfEqChain scrutN (mlfConstDflt . mlfTm <$> mbDflt) alts
 
   mlfBody : NamedDef -> Doc
   mlfBody (MkNmFun args rhs) =
