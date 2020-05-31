@@ -405,31 +405,64 @@ mlfRec defs = parens $
   text "rec"
   $$ indentBlock defs
 
-generateMlf : Ref Ctxt Defs ->
-               ClosedTerm -> (outfile : String) -> Core ()
-generateMlf c tm outfile
-    = do cdata <- getCompileData Cases tm
-         let ndefs = namedDefs cdata
-         let ctm = forget (mainExpr cdata)
-         let ldefs = lazyDefs ndefs
+ccCFun : List String -> Maybe (List String)
+ccCFun [] = Nothing
+ccCFun (cc :: ccs) =
+  if substr 0 2 cc == "C:"
+    then Just (split (== ',') $ substr 2 (length cc) cc)
+    else ccLibFun ccs
 
-         defsMlf <- traverse (pure . mlfDef ldefs) ndefs
-         mainMlf <- pure $ mlfTm ldefs ctm
-         let code = render " " $ parens (
-                text "module"
-                $$ indent (
-                     mlfRec defsMlf
-                  $$ parens (text "_" <++> mainMlf)
-                  $$ text ""
-                  $$ parens (text "export")
-                )
-               )
-               $$ text ""
-               $$ text "; vim: ft=lisp"
-               $$ text ""  -- end with a newline
-         Right () <- coreLift $ writeFile outfile code
-            | Left err => throw (FileErr outfile err)
-         pure ()
+glueC : String -> List CFType -> String
+glueC fn = 
+
+glueDefC : NamedDef -> List Doc
+glueDefC (MkNmForeign ccs fargs x) =
+  case ccCFun ccs of
+    Just [fn, "libidris2_support"] => [glueC fn fargs]
+    _ => []
+glueDefC _ = []
+
+glueDefML : NamedDef -> List Doc
+glueDefML (MkNmForeign ccs fargs x) = ?rhs_4
+glueDefML _ = []
+
+generateGlue : String -> String -> List (Name, FC, NamedDef) -> Core ()
+generateGlue fnGlueC fnGlueML defs = do
+  let glueC = vcat $ concat [glueDefC def | (_,_,def) <- defs]
+  Right () <- coreLift $ writeFile fnGlueC (render "  " glueC)
+    | Left err => throw (FileErr fnGlueC err)
+
+  let glueML = vcat $ concat [glueDefML def | (_,_,def) <- defs]
+  Right () <- coreLift $ writeFile fnGlueML (render "  " glueML)
+    | Left err => throw (FileErr fnGlueML err)
+  pure ()
+
+generateMlf : Ref Ctxt Defs -> ClosedTerm
+    -> String -> String -> String -> Core ()
+generateMlf c tm fnMlf fnGlueC fnGlueML = do
+  cdata <- getCompileData Cases tm
+  let ndefs = namedDefs cdata
+  let ctm = forget (mainExpr cdata)
+  let ldefs = lazyDefs ndefs
+
+  defsMlf <- traverse (pure . mlfDef ldefs) ndefs
+  mainMlf <- pure $ mlfTm ldefs ctm
+  let code = render " " $ parens (
+         text "module"
+         $$ indent (
+               mlfRec defsMlf
+           $$ parens (text "_" <++> mainMlf)
+           $$ text ""
+           $$ parens (text "export")
+         )
+        )
+        $$ text ""
+        $$ text "; vim: ft=lisp"
+        $$ text ""  -- end with a newline
+  Right () <- coreLift $ writeFile fnMlf code
+     | Left err => throw (FileErr fnMlf err)
+
+  generateGlue fnGlueC fnGlueML ndefs
 
 compileExpr : Ref Ctxt Defs -> (execDir : String) ->
               ClosedTerm -> (outfile : String) -> Core (Maybe String)
@@ -443,7 +476,10 @@ compileExpr c execDir tm outfile
 
          copy "Rts.ml"
          copy "rts.c"
-         generateMlf c tm (bld </> "Main.mlf")
+         generateMlf c tm
+            (bld </> "Main.mlf")
+            (bld </> "Glue.ml")
+            (bld </> "glue.c")
 
          let cmd = unwords
                 [ "(cd " ++ bld
@@ -451,8 +487,9 @@ compileExpr c execDir tm outfile
                 , "&& ocamlfind opt -c Rts.mli"
                 , "&& ocamlfind opt -c Rts.ml"
                 , "&& cc -O2 -c rts.c -I $(ocamlc -where)"
+                , "&& cc -O2 -c glue.c -I $(ocamlc -where)"
                 , "&& malfunction cmx Main.mlf"
-                , "&& ocamlfind opt -package zarith -linkpkg Rts.cmx Main.cmx rts.o -o ../" ++ outfile
+                , "&& ocamlfind opt -package zarith -linkpkg Rts.cmx Main.cmx rts.o glue.o -o ../" ++ outfile
                 , ")"
                 ]
          ok <- coreLift $ system cmd
