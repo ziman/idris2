@@ -85,7 +85,9 @@ export %inline
 cCall : (ret : Type) -> String -> FArgList -> IO ret
 cCall ret fn args = primIO (prim__cCall ret fn args)
 
-%foreign "C:idris2_isNull, libidris2_support"
+%foreign
+  "C:idris2_isNull, libidris2_support"
+  "ML:Option.is_none"
 export
 prim__nullAnyPtr : AnyPtr -> Int
 
