@@ -11,4 +11,24 @@ let hello_world (_ : unit) : string =
 
 (* actual support code *)
 
+(* this works only because the low-level representation of Idris lists
+ * is the same as the low-level representation of the OCaml lists
+ *
+ * https://ocaml.org/releases/4.09/htmlman/intfc.html#sec434
+ *)
 let get_args (_ : unit) : string list = Array.to_list Sys.argv
+
+module File = struct
+    type file_ptr =
+        | FileR of in_channel
+        | FileW of out_channel
+
+    let rec fopen (path : string) (mode : string) (_ : int) : file_ptr =
+        match mode with
+        | "r" -> FileR (open_in path)
+        | "w" -> FileW (open_out path)
+        | "rb" -> FileR (open_in_bin path)
+        | "wb" -> FileW (open_out_bin path)
+        | _ -> failwith ("unknown file open mode: " ^ mode)
+    ;;
+end

@@ -16,7 +16,9 @@ support fn = "C:" ++ fn ++ ", libidris2_support"
 libc : String -> String
 libc fn = "C:" ++ fn ++ ", libc 6"
 
-%foreign support "idris2_openFile"
+%foreign
+  support "idris2_openFile"
+  "ML:Rts.File.fopen"
 prim__open : String -> String -> Int -> PrimIO FilePtr
 %foreign support "idris2_closeFile"
 prim__close : FilePtr -> PrimIO ()
