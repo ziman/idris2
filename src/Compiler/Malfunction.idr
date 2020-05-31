@@ -406,7 +406,7 @@ compileExpr c execDir tm outfile
                 [ "(cd " ++ bld
                 , "&& ocamlfind opt -c Rts.mli"
                 , "&& ocamlfind opt -c Rts.ml"
-                , "&& cc -c rts.c -I $(ocamlc -where)"
+                , "&& cc -O2 -c rts.c -I $(ocamlc -where)"
                 , "&& malfunction cmx Main.mlf"
                 , "&& ocamlfind opt -package zarith -linkpkg Rts.cmx Main.cmx rts.o -o ../" ++ outfile
                 , ")"
