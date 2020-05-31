@@ -68,6 +68,7 @@ mlfGlobal mlName = parens $
       ]
 
 mlfApply : Doc -> List Doc -> Doc
+mlfApply f [] = f
 mlfApply f args = parens $
   text "apply" <++> f
   $$ indentBlock args
