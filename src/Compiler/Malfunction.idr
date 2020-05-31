@@ -287,7 +287,6 @@ parameters (ldefs : SortedSet Name)
         else mlfVar n
     mlfTm (NmLam fc n rhs) = mlfLam [n] (mlfTm rhs)
     mlfTm (NmLet fc n val rhs) = mlfLet n (mlfTm val) (mlfTm rhs)
-    mlfTm (NmApp fc f []) = mlfTm f
     mlfTm (NmApp fc f args) = mlfApply (mlfTm f) (map mlfTm args)
     mlfTm (NmCon fc cn mbTag args) = mlfBlock mbTag (map mlfTm args)
     mlfTm (NmCrash fc msg) = mlfError msg
@@ -329,8 +328,7 @@ parameters (ldefs : SortedSet Name)
   mlfBody (MkNmForeign ccs fargs cty) =
     mlfLam (map fst args) $
       case ccLibFun ccs of
-        Just fn =>
-          mlfLibCall fn (map (mlfVar . fst) $ filter snd args)
+        Just fn => mlfLibCall fn (map mlfVar fgnArgs)
         Nothing =>
           mlfError $ "unimplemented foreign: " ++ show (MkNmForeign ccs fargs cty)
     where
@@ -341,6 +339,9 @@ parameters (ldefs : SortedSet Name)
 
       args : List (Name, Bool)
       args = mkArgs 0 fargs
+
+      fgnArgs : List Name
+      fgnArgs = map fst $ filter snd args
 
   mlfBody (MkNmError err) =
     mlfTm err
