@@ -434,18 +434,20 @@ generateMlf c tm outfile
 compileExpr : Ref Ctxt Defs -> (execDir : String) ->
               ClosedTerm -> (outfile : String) -> Core (Maybe String)
 compileExpr c execDir tm outfile
-    = do let bld = execDir </> "build"
+    = do let bld = execDir </> "mlf-" ++ outfile
          coreLift $ mkdirAll bld
 
          let copy = \fn => with Core.Core.(>>=) do
                src <- readDataFile ("malfunction" </> fn)
                coreLift $ writeFile (bld </> fn) src
-         traverse_ copy $ with Prelude.Nil ["Rts.mli", "Rts.ml", "rts.c"]
 
+         copy "Rts.ml"
+         copy "rts.c"
          generateMlf c tm (bld </> "Main.mlf")
 
          let cmd = unwords
                 [ "(cd " ++ bld
+                , "&& ocamlfind opt -i Rts.ml > Rts.mli"
                 , "&& ocamlfind opt -c Rts.mli"
                 , "&& ocamlfind opt -c Rts.ml"
                 , "&& cc -O2 -c rts.c -I $(ocamlc -where)"
