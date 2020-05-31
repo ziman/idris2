@@ -348,7 +348,7 @@ parameters (ldefs : SortedSet Name)
         Nothing =>
           let scrutN = MN "scrut" 0
             in mlfLet scrutN (mlfTm scrut) $
-              mlfEqChain scrutN (mlfConstDflt . mlfTm <$> mbDflt) alts
+              mlfEqChain scrutN (mlfTm <$> mbDflt) alts
 
   mlfBody : NamedDef -> Doc
   mlfBody (MkNmFun args rhs) =
