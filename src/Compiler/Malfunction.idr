@@ -220,6 +220,11 @@ mlfConstant (Db x) =
     [] => Pretty.show x <+> text ".0"
     _  => Pretty.show x
 
+mlfConstant (B8 x) = mlfError $ "B8: " ++ show x
+mlfConstant (B16 x) = mlfError $ "B16: " ++ show x
+mlfConstant (B32 x) = mlfError $ "B32: " ++ show x
+mlfConstant (B64 x) = mlfError $ "B64: " ++ show x
+
 mlfConstant WorldVal = show 0
 
 mlfConstant IntType = show 0
@@ -228,6 +233,10 @@ mlfConstant StringType = show 2
 mlfConstant CharType = show 3
 mlfConstant DoubleType = show 4
 mlfConstant WorldType = show 5
+mlfConstant Bits8Type = show 6
+mlfConstant Bits16Type = show 7
+mlfConstant Bits32Type = show 8
+mlfConstant Bits64Type = show 9
 
 mlfConstPat : Constant -> Maybe Doc
 -- malfunction cannot switch on these
