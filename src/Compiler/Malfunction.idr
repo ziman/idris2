@@ -143,6 +143,12 @@ mlfOp (EQ IntType) [x,y] = sexp [text "==.int", x,y]
 mlfOp (GTE IntType) [x,y] = sexp [text ">=.int", x,y]
 mlfOp (GT IntType) [x,y] = sexp [text ">.int", x,y]
 
+mlfOp (LT CharType) [x,y] = sexp [text "<.int", x,y]
+mlfOp (LTE CharType) [x,y] = sexp [text "<=.int", x,y]
+mlfOp (EQ CharType) [x,y] = sexp [text "==.int", x,y]
+mlfOp (GTE CharType) [x,y] = sexp [text ">=.int", x,y]
+mlfOp (GT CharType) [x,y] = sexp [text ">.int", x,y]
+
 mlfOp (Add IntegerType) [x,y] = sexp [text "+.ibig", x,y]
 mlfOp (Sub IntegerType) [x,y] = sexp [text "-.ibig", x,y]
 mlfOp (Mul IntegerType) [x,y] = sexp [text "*.ibig", x,y]
@@ -156,11 +162,22 @@ mlfOp (GT IntegerType) [x,y] = sexp [text ">.ibig", x,y]
 
 mlfOp (Cast IntegerType IntType) [x] = sexp [text "convert.ibig.int", x]
 mlfOp (Cast IntType IntegerType) [x] = sexp [text "convert.int.ibig", x]
+mlfOp (Cast IntegerType CharType) [x] = sexp [text "convert.ibig.int", x]
+mlfOp (Cast CharType IntegerType) [x] = sexp [text "convert.int.ibig", x]
 
 -- FIXME: what's the appropriate stdlib function for this?
 mlfOp (Cast IntegerType StringType) [x] =
   mlfLibCall "Stdlib.string_of_int" [sexp[text "convert.ibig.int", x]]
 
+mlfOp StrLength [x] = mlfLibCall "String.length" [x]
+mlfOp StrHead [x] = mlfLibCall "String.get" [x, show 0]
+mlfOp StrTail [x] = mlfLibCall "String.sub"
+  [x, show 1, sexp [text "-.int", mlfLibCall "String.length" [x], show 1]]  -- FIXME: this seems to be O(n)
+mlfOp StrIndex [x, i] = mlfLibCall "String.get" [x, i]
+mlfOp StrCons [x, xs] = mlfLibCall "Stdlib.^"
+  [mlfLibCall "String.make" [show 1, x], xs]  -- not sure about the efficiency of this one
+mlfOp StrReverse [x] = mlfError "unimplemented mlfOp StrReverse" -- mlfLibCall "Rts.String.reverse" [x]
+mlfOp StrSubstr [off, len, s] = mlfLibCall "String.sub" [s, off, len]
 mlfOp StrAppend [x,y] = mlfLibCall "Stdlib.^" [x,y]
 mlfOp Crash [_, msg] = mlfLibCall "Stdlib.failwith" [msg]
 mlfOp BelieveMe [_, _, x] = x
