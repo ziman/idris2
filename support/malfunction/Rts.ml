@@ -12,6 +12,10 @@ module Types = struct
 end
 open Types
 
+module IORef = struct
+    let write (r : 'a ref) (x : 'a) : unit = r := x
+end
+
 module System = struct
     let get_args : string idris_list =
             to_idris_list (Array.to_list Sys.argv)

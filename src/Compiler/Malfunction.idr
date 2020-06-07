@@ -129,7 +129,7 @@ mlfForce : Doc -> Doc
 mlfForce doc = sexp [text "force", doc]
 
 mlfBlock : Maybe Int -> List Doc -> Doc
-mlfBlock Nothing args = mlfError "no constructor tag"
+mlfBlock Nothing args = mlfError "no constructor tag (1)"
 mlfBlock (Just tag) args = parens $
   text "block" <++> sexp [text "tag", show tag]
   $$ indentBlock args
@@ -238,6 +238,15 @@ mlfExtPrim (NS _ (UN "prim__arrayGet")) =
 mlfExtPrim (NS _ (UN "prim__arraySet")) =
   mlfLam [UN "_ty", UN "arr", UN "i", UN "x", UN "_world"] $
     mlfLibCall "Array.unsafe_set" [mlfVar (UN "arr"), mlfVar (UN "i"), mlfVar (UN "x")]
+mlfExtPrim (NS _ (UN "prim__newIORef")) =
+  mlfLam [UN "_ty", UN "x", UN "_world"] $
+    mlfLibCall "Stdlib.ref" [mlfVar (UN "x")]
+mlfExtPrim (NS _ (UN "prim__readIORef")) =
+  mlfLam [UN "_ty", UN "ref", UN "_world"] $
+    mlfLibCall "Stdlib.!" [mlfVar (UN "ref")]
+mlfExtPrim (NS _ (UN "prim__writeIORef")) =
+  mlfLam [UN "_ty", UN "ref", UN "x", UN "_world"] $
+    mlfLibCall "Rts.IORef.write" [mlfVar (UN "ref"), mlfVar (UN "x")] -- Stdlib.:= is lexically troublesome
 mlfExtPrim n = mlfError $ "unimplemented external primitive: " ++ show n
 
 mlfConstant : Constant -> Doc
@@ -385,7 +394,7 @@ parameters (ldefs : SortedSet Name)
       let (f', args') = unApp f args
         in mlfApply (mlfTm f') (map mlfTm args')
       -}
-    mlfTm (NmCon fc cn Nothing []) = mlfError $ "no constructor tag"
+    mlfTm (NmCon fc cn Nothing []) = mlfString (show cn)  -- type constructor
     mlfTm (NmCon fc cn (Just tag) []) = show tag
     mlfTm (NmCon fc cn mbTag args) = mlfBlock mbTag (map mlfTm args)
     mlfTm (NmCrash fc msg) = mlfError msg
