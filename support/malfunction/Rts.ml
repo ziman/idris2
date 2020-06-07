@@ -1,22 +1,30 @@
-(* test code *)
-external c_hello : int -> string = "c_hello"
+module Types = struct
+    (* this is made to match the Idris constructor tags *)
+    type 'a idris_list =
+        | Nil                         (* int 0 *)
+        | UNUSED of int               (* block, tag 0 *)
+        | Cons of 'a * 'a idris_list  (* block, tag 1 *)
 
-let hello_world (_ : unit) : string =
-    print_string "hello from ocaml, getting a secret string from C";
-    print_newline ();
-    let secret = c_hello 42 in
-    print_string "returning from ocaml";
-    print_newline ();
-    secret
+    let rec to_idris_list = function
+        | [] -> Nil
+        | x :: xs -> Cons (x, to_idris_list xs)
+end
+open Types
 
-(* actual support code *)
+module System = struct
+    let get_args (_ : unit) : string idris_list =
+            to_idris_list (Array.to_list Sys.argv)
+end
 
-(* get_args works only because the low-level representation of Idris lists
- * is the same as the low-level representation of the OCaml lists
- *
- * https://ocaml.org/releases/4.09/htmlman/intfc.html#sec434
- *)
-let get_args : string list = Array.to_list Sys.argv
+module Debug = struct
+    (* %foreign "ML:Rts.Debug.inspect"
+     * prim__inspect : (x : a) -> (1 w : %World) -> IORes ()
+     *
+     * inspect : a -> IO ()
+     * inspect x = primIO (prim__inspect x)
+     *)
+    external inspect : 'ty -> 'a -> unit = "inspect"
+end
 
 module File = struct
     type file_ptr =
@@ -32,4 +40,17 @@ module File = struct
             | "wb" -> FileW (open_out_bin path)
             | _ -> failwith ("unknown file open mode: " ^ mode))
         with Sys_error msg -> None
+end
+
+(* some test code *)
+module Demo = struct
+    external c_hello : int -> string = "c_hello"
+
+    let hello_world (_ : unit) : string =
+        print_string "hello from ocaml, getting a secret string from C";
+        print_newline ();
+        let secret = c_hello 42 in
+        print_string "returning from ocaml";
+        print_newline ();
+        secret
 end

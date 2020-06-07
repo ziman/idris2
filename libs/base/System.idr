@@ -27,7 +27,7 @@ usleep sec = primIO (prim_usleep sec)
 -- better convention. Will revisit...
 %foreign
     "scheme:blodwen-args"
-    "ML:Rts.get_args"
+    "ML:Rts.System.get_args"
 prim__getArgs : PrimIO (List String)
 
 export
