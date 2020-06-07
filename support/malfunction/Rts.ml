@@ -12,7 +12,7 @@ end
 open Types
 
 module System = struct
-    let get_args (_ : unit) : string idris_list =
+    let get_args : string idris_list =
             to_idris_list (Array.to_list Sys.argv)
 end
 
