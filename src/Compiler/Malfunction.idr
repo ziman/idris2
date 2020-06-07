@@ -229,7 +229,16 @@ mlfOp Crash = ?rhsOp_38
 -}
 
 mlfExtPrim : Name -> Doc
-mlfExtPrim n = mlfDebug n
+mlfExtPrim (NS _ (UN "prim__newArray")) =
+  mlfLam [UN "_ty", UN "n", UN "x", UN "_world"] $
+    mlfLibCall "Array.make" [mlfVar (UN "n"), mlfVar (UN "x")]
+mlfExtPrim (NS _ (UN "prim__arrayGet")) =
+  mlfLam [UN "_ty", UN "arr", UN "i", UN "_world"] $
+    mlfLibCall "Array.unsafe_get" [mlfVar (UN "arr"), mlfVar (UN "i")]
+mlfExtPrim (NS _ (UN "prim__arraySet")) =
+  mlfLam [UN "_ty", UN "arr", UN "i", UN "x", UN "_world"] $
+    mlfLibCall "Array.unsafe_set" [mlfVar (UN "arr"), mlfVar (UN "i"), mlfVar (UN "x")]
+mlfExtPrim n = mlfError $ "unimplemented external primitive: " ++ show n
 
 mlfConstant : Constant -> Doc
 mlfConstant (I x) = show x
