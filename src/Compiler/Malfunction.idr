@@ -28,6 +28,9 @@ import System.Info
 
 %default covering
 
+debug : Bool
+debug = True
+
 heXX : Int -> String
 heXX x = hd (x `div` 16) ++ hd (x `mod` 16)
   where
@@ -164,10 +167,11 @@ mlfOp (Cast IntegerType IntType) [x] = sexp [text "convert.ibig.int", x]
 mlfOp (Cast IntType IntegerType) [x] = sexp [text "convert.int.ibig", x]
 mlfOp (Cast IntegerType CharType) [x] = sexp [text "convert.ibig.int", x]
 mlfOp (Cast CharType IntegerType) [x] = sexp [text "convert.int.ibig", x]
+mlfOp (Cast CharType IntType) [x] = x
+mlfOp (Cast IntType CharType) [x] = x
 
--- FIXME: what's the appropriate stdlib function for this?
-mlfOp (Cast IntegerType StringType) [x] =
-  mlfLibCall "Stdlib.string_of_int" [sexp[text "convert.ibig.int", x]]
+mlfOp (Cast IntegerType StringType) [x] = mlfLibCall "Z.to_string" [x]
+mlfOp (Cast IntType StringType) [x] = mlfLibCall "Stdlib.string_of_int" [x]
 
 mlfOp StrLength [x] = mlfLibCall "String.length" [x]
 mlfOp StrHead [x] = mlfLibCall "String.get" [x, show 0]
@@ -271,6 +275,9 @@ mlfConstEqCheck x (Str y) = mlfLibCall "String.equal" [x, mlfConstant (Str y)]
 -- everything else is represented as ints
 mlfConstEqCheck x y = sexp [text "==.int", x, mlfConstant y]
 
+mlfConDflt : Doc -> Doc
+mlfConDflt rhs = sexp [sexp [text "tag", text "_"], text "_", rhs]
+
 mlfSwitch : Doc -> List Doc -> Maybe Doc -> Doc
 mlfSwitch scrut [] Nothing =
   mlfError $ "case with no RHS"
@@ -281,10 +288,13 @@ mlfSwitch scrut alts (Just dflt) = parens $
 
 mlfSwitch scrut alts Nothing = parens $
   text "switch" <++> scrut
-  $$ indent (vcat alts)
-
-mlfConDflt : Doc -> Doc
-mlfConDflt rhs = sexp [sexp [text "tag", text "_"], text "_", rhs]
+  $$ indent (if debug then (vcat alts $$ catchall) else vcat alts)
+ where
+  catchall : Doc
+  catchall =
+    mlfConDflt $
+      mlfLet (UN "_") (mlfLibCall "Rts.Debug.inspect" [show 0, scrut])$
+        mlfError "unmatched pattern! (block tree dump above)"
 
 mlfConstDflt : Doc -> Doc
 mlfConstDflt rhs = sexp [text "_", rhs]
@@ -311,6 +321,12 @@ ccLibFun (cc :: ccs) =
   if substr 0 3 cc == "ML:"
     then Just (substr 3 (length cc) cc)
     else ccLibFun ccs
+
+{-
+unApp : NamedCExp -> List NamedCExp -> (NamedCExp, List NamedCExp)
+unApp (NmApp fc f args) args' = unApp f (args ++ args')
+unApp f args = (f, args)
+-}
 
 parameters (ldefs : SortedSet Name)
   mutual
@@ -354,7 +370,12 @@ parameters (ldefs : SortedSet Name)
         else mlfVar n
     mlfTm (NmLam fc n rhs) = mlfLam [n] (mlfTm rhs)
     mlfTm (NmLet fc n val rhs) = mlfLet n (mlfTm val) (mlfTm rhs)
-    mlfTm (NmApp fc f args) = mlfApply (mlfTm f) (map mlfTm args)
+    mlfTm (NmApp fc f args) =
+      mlfApply (mlfTm f) (map mlfTm args)
+      {- probably unnecessary
+      let (f', args') = unApp f args
+        in mlfApply (mlfTm f') (map mlfTm args')
+      -}
     mlfTm (NmCon fc cn Nothing []) = mlfError $ "no constructor tag"
     mlfTm (NmCon fc cn (Just tag) []) = show tag
     mlfTm (NmCon fc cn mbTag args) = mlfBlock mbTag (map mlfTm args)
@@ -471,14 +492,16 @@ compileExpr c execDir tm outfile
          copy "rts.c"
          generateMlf c tm (bld </> "Main.mlf")
 
+         let flags = if debug then "-g" else ""
          let cmd = unwords
                 [ "(cd " ++ bld
-                , "&& ocamlfind opt -i Rts.ml > Rts.mli"
-                , "&& ocamlfind opt -c Rts.mli"
-                , "&& ocamlfind opt -c Rts.ml"
-                , "&& cc -O2 -c rts.c -I $(ocamlc -where)"
+                , "&& ocamlfind opt " ++ flags ++ " -i Rts.ml > Rts.mli"
+                , "&& ocamlfind opt " ++ flags ++ " -c Rts.mli"
+                , "&& ocamlfind opt " ++ flags ++ " -c Rts.ml"
+                , "&& cc -O2 " ++ flags ++ " -c rts.c -I $(ocamlc -where)"
                 , "&& malfunction cmx Main.mlf"
-                , "&& ocamlfind opt -package zarith -linkpkg Rts.cmx Main.cmx rts.o -o ../" ++ outfile
+                , "&& ocamlfind opt -package zarith -linkpkg "
+                    ++ flags ++ " Rts.cmx Main.cmx rts.o -o ../" ++ outfile
                 , ")"
                 ]
          ok <- coreLift $ system cmd
