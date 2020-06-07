@@ -267,7 +267,7 @@ mlfSwitch scrut alts Nothing = parens $
   $$ indent (vcat alts)
 
 mlfConDflt : Doc -> Doc
-mlfConDflt rhs = sexp [sexp [text "tag", text "_"], rhs]
+mlfConDflt rhs = sexp [sexp [text "tag", text "_"], text "_", rhs]
 
 mlfConstDflt : Doc -> Doc
 mlfConstDflt rhs = sexp [text "_", rhs]
