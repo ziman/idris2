@@ -11,12 +11,12 @@ let hello_world (_ : unit) : string =
 
 (* actual support code *)
 
-(* this works only because the low-level representation of Idris lists
+(* get_args works only because the low-level representation of Idris lists
  * is the same as the low-level representation of the OCaml lists
  *
  * https://ocaml.org/releases/4.09/htmlman/intfc.html#sec434
  *)
-let get_args (_ : unit) : string list = Array.to_list Sys.argv
+let get_args : string list = Array.to_list Sys.argv
 
 module File = struct
     type file_ptr =
