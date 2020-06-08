@@ -67,16 +67,6 @@ data GCAnyPtr : Type where [external]
 public export
 data ThreadID : Type where [external]
 
-public export
-data FArgList : Type where
-     Nil : FArgList
-     (::) : {a : Type} -> (1 arg : a) -> (1 args : FArgList) -> FArgList
-
-%extern prim__cCall : (ret : Type) -> String -> (1 args : FArgList) ->
-                      (1 x : %World) -> IORes ret
-%extern prim__schemeCall : (ret : Type) -> String -> (1 args : FArgList) ->
-                           (1 x : %World) -> IORes ret
-
 export %inline
 primIO : (1 fn : (1 x : %World) -> IORes a) -> IO a
 primIO op = MkIO op
@@ -84,14 +74,6 @@ primIO op = MkIO op
 export %inline
 toPrim : (1 act : IO a) -> PrimIO a
 toPrim (MkIO fn) = fn
-
-export %inline
-schemeCall : (ret : Type) -> String -> (1 args : FArgList) -> IO ret
-schemeCall ret fn args = primIO (prim__schemeCall ret fn args)
-
-export %inline
-cCall : (ret : Type) -> String -> FArgList -> IO ret
-cCall ret fn args = primIO (prim__cCall ret fn args)
 
 %foreign
   "C:idris2_isNull, libidris2_support"
@@ -161,13 +143,14 @@ export
 getChar : IO Char
 getChar = primIO prim__getChar
 
-export
-fork : (1 prog : IO ()) -> IO ThreadID
-fork (MkIO act) = schemeCall ThreadID "blodwen-thread" [act]
+%foreign
+    "scheme:blodwen-thread"
+    "ML:Rts.System.fork_thread"
+prim__fork : (1 prog : PrimIO ()) -> PrimIO ThreadID
 
 export
-prim_fork : (1 prog : PrimIO ()) -> PrimIO ThreadID
-prim_fork act w = prim__schemeCall ThreadID "blodwen-thread" [act] w
+fork : (1 prog : IO ()) -> IO ThreadID
+fork (MkIO prog) = primIO (prim__fork prog)
 
 %foreign "C:idris2_readString, libidris2_support"
 export

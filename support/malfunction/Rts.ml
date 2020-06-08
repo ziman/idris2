@@ -1,16 +1,26 @@
+(* These types are made to match the Idris representation *)
 module Types = struct
-    (* this is made to match the Idris constructor tags *)
-    type 'a idris_list =
-        | Nil                         (* int 0 *)
-        | UNUSED of int               (* block, tag 0 *)
-        | Cons of 'a * 'a idris_list  (* block, tag 1 *)
+    type world = World
 
-    let rec to_idris_list = function
-        | [] -> Nil
-        | x :: xs -> Cons (x, to_idris_list xs)
+    module IdrisList = struct
+        type 'a idris_list =
+            | Nil                         (* int 0 *)
+            | UNUSED of int               (* block, tag 0 *)
+            | Cons of 'a * 'a idris_list  (* block, tag 1 *)
+
+        let rec of_list = function
+            | [] -> Nil
+            | x :: xs -> Cons (x, to_idris_list xs)
+
+        let rec to_list = function
+            | Nil -> []
+            | UNUSED _ -> failwith "UNUSED tag in idris list"
+            | Cons (x, xs) -> x :: xs
+    end
 
 end
 open Types
+open Types.IdrisList
 
 module IORef = struct
     let write (r : 'a ref) (x : 'a) : unit = r := x
@@ -18,7 +28,26 @@ end
 
 module System = struct
     let get_args : string idris_list =
-            to_idris_list (Array.to_list Sys.argv)
+        IdrisList.of_list (Array.to_list Sys.argv)
+
+    let fork_thread (sub : world -> unit) : Thread.t = Thread.create sub World
+end
+
+module String = struct
+    (* pre-allocate a big buffer once and copy all strings in it *)
+    let fast_concat (ssi : string idris_list) : string =
+        let ss = IdrisList.to_list ssi
+        let total_length = List.fold_left (fun l s -> l + String.length s) 0 ss
+        let result = Bytes.make total_length 0 in
+        let rec write_strings (ofs : int) = function
+            | [] -> ()
+            | s :: ss ->
+                let src = Bytes.unsafe_of_string s in
+                let len = Bytes.length src in
+                Bytes.blit src 0 result ofs len;
+                write_strings (ofs+len) ss
+        write_strings;
+        Bytes.unsafe_to_string result
 end
 
 module Debug = struct
