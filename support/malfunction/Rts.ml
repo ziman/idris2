@@ -35,7 +35,7 @@ end
 
 module String = struct
     (* pre-allocate a big buffer once and copy all strings in it *)
-    let fast_concat (ssi : string idris_list) : string =
+    let concat (ssi : string idris_list) : string =
         let ss = IdrisList.to_list ssi
         let total_length = List.fold_left (fun l s -> l + String.length s) 0 ss
         let result = Bytes.make total_length 0 in
