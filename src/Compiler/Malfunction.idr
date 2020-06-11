@@ -513,12 +513,12 @@ compileExpr c execDir tm outfile
          let flags = if debug then "-g" else ""
          let cmd = unwords
                 [ "(cd " ++ bld
-                , "&& ocamlfind opt " ++ flags ++ " -i Rts.ml > Rts.mli"
-                , "&& ocamlfind opt " ++ flags ++ " -c Rts.mli"
-                , "&& ocamlfind opt " ++ flags ++ " -c Rts.ml"
+                , "&& ocamlfind opt -I +threads " ++ flags ++ " -i Rts.ml > Rts.mli"
+                , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.mli"
+                , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.ml"
                 , "&& cc -O2 " ++ flags ++ " -c rts.c -I $(ocamlc -where)"
                 , "&& malfunction cmx Main.mlf"
-                , "&& ocamlfind opt -package zarith -linkpkg "
+                , "&& ocamlfind opt -thread -package zarith -linkpkg "
                     ++ flags ++ " Rts.cmx Main.cmx rts.o -o ../" ++ outfile
                 , ")"
                 ]
