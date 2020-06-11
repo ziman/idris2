@@ -10,12 +10,12 @@ module Types = struct
 
         let rec of_list = function
             | [] -> Nil
-            | x :: xs -> Cons (x, to_idris_list xs)
+            | x :: xs -> Cons (x, of_list xs)
 
         let rec to_list = function
             | Nil -> []
             | UNUSED _ -> failwith "UNUSED tag in idris list"
-            | Cons (x, xs) -> x :: xs
+            | Cons (x, xs) -> x :: to_list xs
     end
 
 end
@@ -36,17 +36,19 @@ end
 module String = struct
     (* pre-allocate a big buffer once and copy all strings in it *)
     let concat (ssi : string idris_list) : string =
-        let ss = IdrisList.to_list ssi
-        let total_length = List.fold_left (fun l s -> l + String.length s) 0 ss
-        let result = Bytes.make total_length 0 in
+        let ss = IdrisList.to_list ssi in
+        let total_length = List.fold_left (fun l s -> l + String.length s) 0 ss in
+        let result = Bytes.make total_length (Char.chr 0) in
         let rec write_strings (ofs : int) = function
-            | [] -> ()
-            | s :: ss ->
+            | Nil -> ()
+            | UNUSED _ -> failwith "UNUSED"
+            | Cons (s, ss) ->
                 let src = Bytes.unsafe_of_string s in
                 let len = Bytes.length src in
                 Bytes.blit src 0 result ofs len;
                 write_strings (ofs+len) ss
-        write_strings;
+          in
+        write_strings 0 ssi;
         Bytes.unsafe_to_string result
 end
 
