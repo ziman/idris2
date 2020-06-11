@@ -30,7 +30,8 @@ module System = struct
     let get_args : string idris_list =
         IdrisList.of_list (Array.to_list Sys.argv)
 
-    let fork_thread (sub : world -> unit) : Thread.t = Thread.create sub World
+    let fork_thread (sub : world -> unit) : Thread.t =
+        Thread.create sub World
 end
 
 module String = struct
