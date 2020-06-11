@@ -160,13 +160,14 @@ export
 getChar : IO Char
 getChar = primIO prim__getChar
 
-export
-fork : (1 prog : IO ()) -> IO ThreadID
-fork (MkIO act) = schemeCall ThreadID "blodwen-thread" [act]
+%foreign
+  "scheme:blodwen-thread"
+  "ML:Rts.System.fork_thread"
+prim__fork : (1 prog : PrimIO ()) -> PrimIO ThreadID
 
 export
-prim_fork : (1 prog : PrimIO ()) -> PrimIO ThreadID
-prim_fork act w = prim__schemeCall ThreadID "blodwen-thread" [act] w
+fork : (1 prog : IO ()) -> IO ThreadID
+fork (MkIO act) = primIO (prim__fork act)
 
 %foreign "C:idris2_readString, libidris2_support"
 export
