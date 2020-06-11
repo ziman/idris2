@@ -18,18 +18,10 @@ foldl1 f (x::xs) = foldl f x xs
 -- This works quickly because when string-append builds the result, it allocates
 -- enough room in advance so there's only one allocation, rather than lots!
 %foreign
-    "scheme:fast-append"
-    "ML:Rts.String.fast_concat"
-fastAppend : List String -> String
-
--- TODO
+    "scheme:string-concat"
+    "ML:Rts.String.concat"
 export
 fastAppend : List String -> String
-fastAppend xs = unsafePerformIO (schemeCall String "string-append" (toFArgs xs))
-  where
-    toFArgs : List String -> FArgList
-    toFArgs [] = []
-    toFArgs (x :: xs) = x :: toFArgs xs
 
 ||| Splits a character list into a list of whitespace separated character lists.
 |||
