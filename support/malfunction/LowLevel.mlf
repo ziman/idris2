@@ -4,6 +4,9 @@
   ;     int 0: empty string
   ;     block/tag0 (int char-at-ofs) (int char-width)
   ;     int 1: decoding error
+  ;
+  ; this has to be implemented in MLF
+  ; because we can't use Bytes.get: MLF does not implement %bytes_(un)safe_get
   ($utf8-read
     (lambda ($ofs $bytes)
       (let
