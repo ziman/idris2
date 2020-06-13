@@ -65,6 +65,8 @@
   (if (= (vector-ref xs 0) 0)
     '()
     (cons (vector-ref xs 1) (from-idris-list (vector-ref xs 2)))))
+(define-macro (string-pack xs)
+  `(apply string (from-idris-list ,xs)))
 (define-macro (string-concat xs)
   `(apply string-append (from-idris-list xs)))
 

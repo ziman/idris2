@@ -245,6 +245,9 @@ mlfExtPrim (NS _ (UN "prim__readIORef")) =
 mlfExtPrim (NS _ (UN "prim__writeIORef")) =
   mlfLam [UN "_ty", UN "ref", UN "x", UN "_world"] $
     sexp [text "store", mlfVar (UN "ref"), show 0, mlfVar (UN "x")]
+mlfExtPrim (NS _ (UN "prim__schemeCall")) =
+  mlfLam [UN "_rTy", UN "fn", UN "_args", UN "_world"] $
+    mlfLibCall "Stdlib.failwith" [mlfVar (UN "fn")]
 mlfExtPrim n = mlfError $ "unimplemented external primitive: " ++ show n
 
 mlfConstant : Constant -> Doc
