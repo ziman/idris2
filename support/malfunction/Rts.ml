@@ -35,6 +35,10 @@ module System = struct
 end
 
 module String = struct
+    type idris_string =
+        | Empty
+        | Allocated of int * int * Bytes.t
+
     (* pre-allocate a big buffer once and copy all strings in it *)
     let concat (ssi : string idris_list) : string =
         let ss = IdrisList.to_list ssi in
