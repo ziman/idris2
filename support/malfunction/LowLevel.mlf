@@ -84,8 +84,6 @@
   (export
     $utf8-width
     $utf8-read
-    $utf8-write
-
-    $bytes-length))
+    $utf8-write))
 
 ; vim: ft=lisp et sw=2 ts=2 sts=2
