@@ -173,9 +173,10 @@ mlfOp (Cast IntType CharType) [x] = x
 mlfOp (Cast IntegerType StringType) [x] = mlfLibCall "Z.to_string" [x]
 mlfOp (Cast IntType StringType) [x] = mlfLibCall "Stdlib.string_of_int" [x]
 
-mlfOp StrLength [x] = mlfLibCall "String.length" [x]
-mlfOp StrHead [x] = mlfLibCall "String.get" [x, show 0]
-mlfOp StrTail [x] = mlfLibCall "String.sub"
+-- TODO: utf8
+mlfOp StrLength [x] = mlfLibCall "UTF8.length" [x]
+mlfOp StrHead [x] = mlfLibCall "UTF8.get" [x, show 0]
+mlfOp StrTail [x] = mlfLibCall "UTF8.sub"
   [x, show 1, sexp [text "-.int", mlfLibCall "String.length" [x], show 1]]  -- FIXME: this seems to be O(n)
 mlfOp StrIndex [x, i] = mlfLibCall "String.get" [x, i]
 mlfOp StrCons [x, xs] = mlfLibCall "Stdlib.^"
@@ -506,6 +507,7 @@ compileExpr c execDir tm outfile
                src <- readDataFile ("malfunction" </> fn)
                coreLift $ writeFile (bld </> fn) src
 
+         copy "Misc.mlf"
          copy "Rts.ml"
          copy "rts.c"
          generateMlf c tm (bld </> "Main.mlf")
@@ -517,9 +519,10 @@ compileExpr c execDir tm outfile
                 , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.mli"
                 , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.ml"
                 , "&& cc -O2 " ++ flags ++ " -c rts.c -I $(ocamlc -where)"
+                , "&& malfunction cmx Misc.mlf"
                 , "&& malfunction cmx Main.mlf"
                 , "&& ocamlfind opt -thread -package zarith -linkpkg "
-                    ++ flags ++ " Rts.cmx Main.cmx rts.o -o ../" ++ outfile
+                    ++ flags ++ " Rts.cmx Misc.cmx Main.cmx rts.o -o ../" ++ outfile
                 , ")"
                 ]
          ok <- coreLift $ system cmd

@@ -1,0 +1,76 @@
+; utf8-string representation:
+;
+; int 0: empty string
+; block/tag1 (int ofs) (int len) (byte vector bs): non-empty string
+;
+; this is meant to be compatible with an Idris representation
+(module
+  ; uncons:
+  ;   utf8-string ->
+  ;     int 0: empty string
+  ;     block/tag1 (int head) (utf8-string tail)
+  ;
+  ; this is meant to be compatible with an Idris representation
+  ($utf8-uncons
+    (lambda ($bs)
+      (switch $bs
+        (0 0)  ; empty string
+        ((tag 0)
+          (let
+            ($len (field 1 $bs))
+            ($ofs (field 2 $bs))
+            ($bytes (field 3 $bs))
+              (switch $len
+                (0 0)  ; empty string
+                (_
+                  (let ($h (load.byte $bytes $ofs))
+                    (if (< $h 128)
+                      ; character encoded as single byte (ascii range)
+                      (block (tag 1)
+                        $h
+                        (block (tag 1)
+                          (+ $ofs 1)
+                          (- $len 1)
+                          $bytes))
+                      (if (< $h 224)
+                        ; character encoded in two bytes
+                        (if (< $len 2)
+                          (apply (global $Stdlib $failwith) "malformed UTF-8 string (2)")
+                          (block (tag 1)
+                            (|
+                              (<< (& $h 31) 6)
+                              (& (load.byte $bytes (+ $ofs 1)) 63))
+                            (block (tag 1)
+                              (+ $ofs 2)
+                              (- $len 2)
+                              $bytes)))
+                        (if (< $h 240)
+                          ; character encoded in three bytes
+                          (if (< $len 3)
+                            (apply (global $Stdlib $failwith) "malformed UTF-8 string (3)")
+                            (block (tag 1)
+                              (|
+                                (<< (& $h 15) 12)
+                                (<< (& (load.byte $bytes (+ $ofs 1)) 63) 6)
+                                (& (load.byte $bytes (+ $ofs 2)) 63))
+                              (block (tag 1)
+                                (+ $ofs 3)
+                                (- $len 3)
+                                $bytes)))
+                          ; character encoded in four bytes
+                          (if (< $len 4)
+                            (apply (global $Stdlib $failwith) "malformed UTF-8 string (4)")
+                            (block (tag 1)
+                              (|
+                                (<< (& $h 7) 18)
+                                (<< (& (load.byte $bytes (+ $ofs 1)) 63) 12)
+                                (<< (& (load.byte $bytes (+ $ofs 2)) 63) 6)
+                                (& (load.byte $bytes (+ $ofs 3)) 63))
+                              (block (tag 1)
+                                (+ $ofs 4)
+                                (- $len 4)
+                                $bytes))))))))))))))
+
+  (export))
+
+; vim: ft=lisp et sw=2 ts=2 sts=2
