@@ -135,6 +135,7 @@ module String = struct
             | IdrisList.Cons (c, xs) ->
                 LowLevel.utf8_write c ofs result;
                 fill (ofs + LowLevel.utf8_width c) xs
+          in fill 0 cs
 end
 
 module Bytes = struct
