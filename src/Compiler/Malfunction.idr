@@ -229,22 +229,22 @@ mlfOp Crash = ?rhsOp_38
 mlfExtPrim : Name -> Doc
 mlfExtPrim (NS _ (UN "prim__newArray")) =
   mlfLam [UN "_ty", UN "n", UN "x", UN "_world"] $
-    mlfLibCall "Array.make" [mlfVar (UN "n"), mlfVar (UN "x")]
+    sexp [text "makevec", mlfVar (UN "n"), mlfVar (UN "x")]
 mlfExtPrim (NS _ (UN "prim__arrayGet")) =
   mlfLam [UN "_ty", UN "arr", UN "i", UN "_world"] $
-    mlfLibCall "Array.unsafe_get" [mlfVar (UN "arr"), mlfVar (UN "i")]
+    sexp [text "load", mlfVar (UN "arr"), mlfVar (UN "i")]
 mlfExtPrim (NS _ (UN "prim__arraySet")) =
   mlfLam [UN "_ty", UN "arr", UN "i", UN "x", UN "_world"] $
-    mlfLibCall "Array.unsafe_set" [mlfVar (UN "arr"), mlfVar (UN "i"), mlfVar (UN "x")]
+    sexp [text "store", mlfVar (UN "arr"), mlfVar (UN "i"), mlfVar (UN "x")]
 mlfExtPrim (NS _ (UN "prim__newIORef")) =
   mlfLam [UN "_ty", UN "x", UN "_world"] $
-    sexp [text "makevec", show "1", mlfVar (UN "x")]
+    sexp [text "makevec", show 1, mlfVar (UN "x")]
 mlfExtPrim (NS _ (UN "prim__readIORef")) =
   mlfLam [UN "_ty", UN "ref", UN "_world"] $
-    sexp [text "load", mlfVar (UN "ref"), show "0"]
+    sexp [text "load", mlfVar (UN "ref"), show 0]
 mlfExtPrim (NS _ (UN "prim__writeIORef")) =
   mlfLam [UN "_ty", UN "ref", UN "x", UN "_world"] $
-    sexp [text "store", mlfVar (UN "ref"), show "0", mlfVar (UN "x")]
+    sexp [text "store", mlfVar (UN "ref"), show 0, mlfVar (UN "x")]
 mlfExtPrim n = mlfError $ "unimplemented external primitive: " ++ show n
 
 mlfConstant : Constant -> Doc
