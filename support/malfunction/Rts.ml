@@ -16,6 +16,11 @@ module Types = struct
             | Nil -> []
             | UNUSED _ -> failwith "UNUSED tag in idris list"
             | Cons (x, xs) -> x :: to_list xs
+
+        let rec foldl f z = function
+            | Nil -> z
+            | UNUSED _ -> failwith "UNUSED tag in idris list"
+            | Cons (x, xs) -> foldl f (f z x) xs
     end
 end
 open Types
@@ -120,6 +125,16 @@ module String = struct
                 decode (c :: acc) (ofs + w)
             | LowLevel.Malformed -> failwith "malformed string"
           in decode [] 0
+
+    let pack (cs : char idris_list) : string =
+        let total_length = IdrisList.foldl (fun l c -> l + LowLevel.utf8_width c) 0 cs in
+        let result = Bytes.create total_length in
+        let rec fill (ofs : int) = function
+            | IdrisList.Nil -> result
+            | IdrisList.UNUSED _ -> failwith "UNUSED in idris list"
+            | IdrisList.Cons (c, xs) ->
+                LowLevel.utf8_write c ofs result;
+                fill (ofs + LowLevel.utf8_width c) xs
 end
 
 module Bytes = struct

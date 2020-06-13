@@ -1211,14 +1211,14 @@ pack : List Char -> String
 pack [] = ""
 pack (x :: xs) = strCons x (pack xs)
 
+%foreign
+  "scheme:string-pack"
+  "ML:Rts.String.pack"
+prim__fastPack : List Char -> String
+
 export
 fastPack : List Char -> String
-fastPack xs
-   = unsafePerformIO (schemeCall String "string" (toFArgs xs))
-  where
-    toFArgs : List Char -> FArgList
-    toFArgs [] = []
-    toFArgs (x :: xs) = x :: toFArgs xs
+fastPack = prim__fastPack
 
 ||| Turns a string into a list of characters.
 |||
