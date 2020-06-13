@@ -1,125 +1,105 @@
-; utf8-string representation:
-;
-; int 0: empty string
-; block/tag0 (int ofs) (int len) (byte vector bs): non-empty string
 (module
-  ; uncons:
-  ;   utf8-string ->
+  ; read result:
+  ;   int ofs, bytes ->
   ;     int 0: empty string
-  ;     block/tag0 (int head) (utf8-string tail)
+  ;     block/tag0 (int char-at-ofs) (int char-width)
   ;     int 1: decoding error
-  ($utf8-uncons
-    (lambda ($str)
-      (switch $str
-        (0 0)  ; empty string
-        ((tag 0)
-          (let
-            ($len (field 1 $str))
-            ($ofs (field 2 $str))
-            ($bytes (field 3 $str))
-              (switch $len
-                (0 0)  ; empty string
-                (_
-                  (let ($h (load.byte $bytes $ofs))
-                    (if (< $h 128)
-                      ; character encoded as single byte (ascii range)
-                      (block (tag 0)
-                        $h
-                        (block (tag 0)
-                          (+ $ofs 1)
-                          (- $len 1)
-                          $bytes))
-                      (if (< $h 192)
-                        ; this is a continuation byte!
-                        1  ; decoding error
-                        (if (< $h 224)
-                          ; character encoded in two bytes
-                          (if (< $len 2)
-                            1  ; decoding error
-                            (block (tag 0)
-                              (|
-                                (<< (& $h 31) 6)
-                                (& (load.byte $bytes (+ $ofs 1)) 63))
-                              (block (tag 0)
-                                (+ $ofs 2)
-                                (- $len 2)
-                                $bytes)))
-                          (if (< $h 240)
-                            ; character encoded in three bytes
-                            (if (< $len 3)
-                              1  ; decoding error
-                              (block (tag 0)
-                                (|(|
-                                  (<< (& $h 15) 12)
-                                  (<< (& (load.byte $bytes (+ $ofs 1)) 63) 6))
-                                  (& (load.byte $bytes (+ $ofs 2)) 63))
-                                (block (tag 0)
-                                  (+ $ofs 3)
-                                  (- $len 3)
-                                  $bytes)))
-                            ; character encoded in four bytes
-                            (if (< $len 4)
-                              1  ; decoding error
-                              (block (tag 0)
-                                (|(|(|
-                                  (<< (& $h 7) 18)
-                                  (<< (& (load.byte $bytes (+ $ofs 1)) 63) 12))
-                                  (<< (& (load.byte $bytes (+ $ofs 2)) 63) 6))
-                                  (& (load.byte $bytes (+ $ofs 3)) 63))
-                                (block (tag 0)
-                                  (+ $ofs 4)
-                                  (- $len 4)
-                                  $bytes)))))))))))))))
-
-  ($utf8-cons
-    (lambda ($c $str)
+  ($utf8-read
+    (lambda ($ofs $bytes)
       (let
-        ($clen
-          (if (< $c 128) 1
-            (if (< $c 2048) 2
-              (if (< $c 65536) 3
-                4))))
-        ($origlen
-          (switch $str
-            (0 0)
-            ((tag 0) (field 1 $str))))
-        ($bytes
-          (switch $str
-            (0 (makevec.byte $clen 0))
-            ((tag 0) (let
-              ($ofs (field 0 $str))
-              ($len (field 1 $str))
-              ($src (field 2 $str))
-              ($dst (makevec.byte (+ $clen $len) 0))
-              (rec
-                ($blit (lambda ($ofs-src $ofs-dst $n)
-                  (switch $n
-                    (0 0)
-                    (_ (seq
-                      (store.byte $dst $ofs-dst (load.byte $src $ofs-src))
-                      (apply $blit (+ $ofs-src 1) (+ $ofs-dst 1) (- $n 1))))))))
-              (_ (apply $blit 0 $clen $len))
-              $dst))))
-        (_ (switch $clen
-          (1 (store.byte $bytes 0 $c))
-          (2 (seq
-               (store.byte $bytes 0 (| 192 (& (>> $c 6) 31)))
-               (store.byte $bytes 1 (| 128 (& $c 63)))))
-          (3 (seq
-               (store.byte $bytes 0 (| 224 (& (>> $c 12) 15)))
-               (store.byte $bytes 1 (| 128 (& (>> $c 6) 63)))
-               (store.byte $bytes 2 (| 128 (& $c 63)))))
-          (_ (seq
-               (store.byte $bytes 0 (| 240 (& (>> $c 18) 7)))
-               (store.byte $bytes 1 (| 128 (& (>> $c 12) 63)))
-               (store.byte $bytes 2 (| 128 (& (>> $c 6) 63)))
-               (store.byte $bytes 3 (| 128 (& $c 63)))))))
+        ($len (- (length.byte $bytes) $ofs))
+        (switch $len
+          (0 0)  ; nothing left
+          (_
+            (let ($h (load.byte $bytes $ofs))
+              (if (< $h 128)
+                ; character encoded as single byte (ascii range)
+                (block (tag 0) $h 1)
+                (if (< $h 192)
+                  ; this is a continuation byte!
+                  1  ; decoding error
+                  (if (< $h 224)
+                    ; character encoded in two bytes
+                    (if (< $len 2)
+                      1  ; decoding error
+                      (block (tag 0)
+                        (|
+                          (<< (& $h 31) 6)
+                          (& (load.byte $bytes (+ $ofs 1)) 63))
+                        2))
+                    (if (< $h 240)
+                      ; character encoded in three bytes
+                      (if (< $len 3)
+                        1  ; decoding error
+                        (block (tag 0)
+                          (|(|
+                            (<< (& $h 15) 12)
+                            (<< (& (load.byte $bytes (+ $ofs 1)) 63) 6))
+                            (& (load.byte $bytes (+ $ofs 2)) 63))
+                          3))
+                      ; character encoded in four bytes
+                      (if (< $len 4)
+                        1  ; decoding error
+                        (block (tag 0)
+                          (|(|(|
+                            (<< (& $h 7) 18)
+                            (<< (& (load.byte $bytes (+ $ofs 1)) 63) 12))
+                            (<< (& (load.byte $bytes (+ $ofs 2)) 63) 6))
+                            (& (load.byte $bytes (+ $ofs 3)) 63))
+                          4))))))))))))
 
-        (block (tag 0) (+ $clen $origlen) $bytes))))
+  ($utf8-width
+    (lambda ($c)
+      (if (< $c 128)
+        1
+        (if (< $c 2048)
+          2
+          (if (< $c 65536)
+            3
+            4)))))
+
+  ($utf8-write
+    (lambda ($c $ofs $bytes)
+      (switch (apply $utf8-width $c)
+        (1
+          (store.byte $bytes $ofs $c))
+        (2 (seq
+          (store.byte $bytes $ofs (| 192 (& (>> $c 6) 31)))
+          (store.byte $bytes (+ $ofs 1) (| 128 (& $c 63)))))
+        (3 (seq
+          (store.byte $bytes $ofs (| 224 (& (>> $c 12) 15)))
+          (store.byte $bytes (+ $ofs 1) (| 128 (& (>> $c 6) 63)))
+          (store.byte $bytes (+ $ofs 2) (| 128 (& $c 63)))))
+        (_ (seq
+          (store.byte $bytes $ofs (| 240 (& (>> $c 18) 7)))
+          (store.byte $bytes (+ $ofs 1) (| 128 (& (>> $c 12) 63)))
+          (store.byte $bytes (+ $ofs 2) (| 128 (& (>> $c 6) 63)))
+          (store.byte $bytes (+ $ofs 3) (| 128 (& $c 63))))))))
+
+  ($bytes-allocate
+    (lambda ($size)
+      (makevec.byte $size 0)))
+
+  ($bytes-length
+    (lambda ($bytes)
+      (length.byte $bytes)))
+
+  (rec ($bytes-blit
+    (lambda ($src $ofs-src $dst $ofs-dst $len)
+      (switch $len
+        (0 0)
+        (_ (seq
+          (store.byte $dst $ofs-dst (load.byte $src $ofs-src))
+          (apply $bytes-blit $src (+ $ofs-src 1) $dst (+ $ofs-dst 1) (- $len 1))))))))
 
   ; must be in the same order as the .mli file
   (export
-    $utf8-cons
-    $utf8-uncons))
+    $utf8-width
+    $utf8-read
+    $utf8-write
+
+    $bytes-allocate
+    $bytes-length
+    $bytes-blit))
 
 ; vim: ft=lisp et sw=2 ts=2 sts=2

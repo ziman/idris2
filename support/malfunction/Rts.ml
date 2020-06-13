@@ -33,57 +33,55 @@ module System = struct
         Thread.create sub World
 end
 
-module String = struct
-    type t = LowLevel.utf8
-    type strM = 
-        | StrNil               (* int 0 *)
-        | UNUSED of int        (* block, tag 0 *)
-        | StrCons of char * t  (* block, tag 1 *)
-
-    let cons : char -> t -> t = LowLevel.utf8_cons
-
-    let uncons (s : t) : strM =
-        match LowLevel.utf8_uncons s with
-        | LowLevel.Nil -> StrNil
-        | LowLevel.Cons (x, xs) -> StrCons (x, xs)
-        | LowLevel.Malformed -> failwith "uncons: malformed string"
-
-    let length : t -> int =
-        let rec go (acc : int) (s : t) =
-            match LowLevel.utf8_uncons s with
-            | LowLevel.Nil -> 0
-            | LowLevel.Cons (_, xs) -> go (acc + 1) xs
-            | LowLevel.Malformed -> failwith "uncons: malformed string"
-        in go 0
-
-    let head (s : t) : char =
-        match LowLevel.utf8_uncons s with
-        | LowLevel.Nil -> failwith "Rts.String.head: empty string"
-        | LowLevel.Cons (x, _) -> x
-        | LowLevel.Malformed -> failwith "Rts.String.head: malformed string"
-
-    let tail (s : t) : t =
-        match LowLevel.utf8_uncons s with
-        | LowLevel.Nil -> failwith "Rts.String.head: empty string"
-        | LowLevel.Cons (_, xs) -> xs
-        | LowLevel.Malformed -> failwith "Rts.String.head: malformed string"
-
+module Bytes = struct
     (* pre-allocate a big buffer once and copy all strings in it *)
-    let concat (ssi : string idris_list) : string =
+    let concat (ssi : bytes idris_list) : bytes =
         let ss = IdrisList.to_list ssi in
-        let total_length = List.fold_left (fun l s -> l + String.length s) 0 ss in
-        let result = Bytes.make total_length (Char.chr 0) in
+        let total_length = List.fold_left (fun l s -> l + LowLevel.bytes_length s) 0 ss in
+        let result = LowLevel.bytes_allocate total_length in
         let rec write_strings (ofs : int) = function
             | IdrisList.Nil -> ()
             | IdrisList.UNUSED _ -> failwith "UNUSED"
-            | IdrisList.Cons (s, ss) ->
-                let src = Bytes.unsafe_of_string s in
-                let len = Bytes.length src in
-                Bytes.blit src 0 result ofs len;
-                write_strings (ofs+len) ss
+            | IdrisList.Cons (src, rest) ->
+                let len = LowLevel.bytes_length src in
+                LowLevel.bytes_blit src 0 result ofs len;
+                write_strings (ofs+len) rest
           in
         write_strings 0 ssi;
-        Bytes.unsafe_to_string result
+        result
+end
+
+module String = struct
+    let cons (c : char) (s : bytes) : bytes =
+        let w = LowLevel.utf8_width c in
+        let l = LowLevel.bytes_length s in
+        let s' = LowLevel.bytes_allocate (w + LowLevel.bytes_length s) in
+        LowLevel.bytes_blit s 0 s' w l;
+        s'
+
+    let length (s : bytes) : int =
+        let rec go (acc : int) (ofs : int) =
+            match LowLevel.utf8_read ofs s with
+            | LowLevel.EOF -> acc
+            | LowLevel.Character (_, w) -> go (acc + 1) (ofs + w)
+            | LowLevel.Malformed -> failwith "malformed string"
+          in go 0 0
+
+    let head (s : bytes) : char =
+        match LowLevel.utf8_read 0 s with
+        | LowLevel.EOF -> failwith "String.head: empty string"
+        | LowLevel.Character (c, _) -> c
+        | LowLevel.Malformed -> failwith "malformed string"
+
+    let tail (s : bytes) : bytes =
+        match LowLevel.utf8_read 0 s with
+        | LowLevel.EOF -> failwith "String.tail: empty string"
+        | LowLevel.Character (_, w) ->
+            let nbytes = LowLevel.bytes_length s in
+            let s' = LowLevel.bytes_allocate (nbytes - w) in
+            LowLevel.bytes_blit s w s' 0 nbytes;
+            s'
+        | LowLevel.Malformed -> failwith "malformed string"
 end
 
 module Debug = struct
