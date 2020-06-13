@@ -35,14 +35,9 @@ module System = struct
 end
 
 module String = struct
-    type idris_string =
-        | Empty
-        | Allocated of int * int * Bytes.t
+    type t = LowLevel.utf8
 
-    type uncons =
-        | Nil
-        | Cons of char * idris_string
-        | Malformed
+    let cons : char -> t -> t = LowLevel.utf8_cons
 
     (* pre-allocate a big buffer once and copy all strings in it *)
     let concat (ssi : string idris_list) : string =
