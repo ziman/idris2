@@ -34,8 +34,36 @@ module System = struct
 end
 
 module String = struct
-    let reverse (s : bytes) : bytes = failwith "Rts.String.reverse not implemented"
-    let sub (ofs : int) (len : int) (s : bytes) : bytes = failwith "Rts.String.sub not implemented"
+    let reverse (src : bytes) : bytes =
+        let len = LowLevel.bytes_length src in
+        let dst = LowLevel.bytes_allocate len in
+        let rec go (ofs_src : int) (ofs_dst : int) =
+            match ofs_dst with
+            | 0 -> dst
+            | _ -> (match LowLevel.utf8_read ofs_src src with
+                | LowLevel.EOF -> failwith "impossible: desynchronised"
+                | LowLevel.Character (c, w) ->
+                    LowLevel.utf8_write c (ofs_dst - w) dst;
+                    go (ofs_src + w) (ofs_dst - w)
+                | LowLevel.Malformed -> failwith "malformed string"
+                )
+          in go 0 len
+
+    (* get the byte offset after skipping N chars from the starting byte offset *)
+    let rec get_end_ofs (ofs : int) (nchars : int) (s : bytes) : int =
+        match nchars with
+        | 0 -> ofs
+        | _ -> match LowLevel.utf8_read ofs s with
+            | LowLevel.EOF -> failwith "string too short"
+            | LowLevel.Character (_, w) -> get_end_ofs (ofs + w) (nchars - 1) s
+            | LowLevel.Malformed -> failwith "malformed string"
+
+    let sub (ofs_chars : int) (nchars : int) (s : bytes) : bytes =
+        let ofs = get_end_ofs 0 ofs_chars s in
+        let len = get_end_ofs ofs nchars s - ofs in
+        let result = LowLevel.bytes_allocate len in
+        Bytes.blit s ofs result 0 len;
+        result
 
     let cons (c : char) (s : bytes) : bytes =
         let w = LowLevel.utf8_width c in
