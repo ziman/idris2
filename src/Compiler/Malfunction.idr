@@ -238,13 +238,13 @@ mlfExtPrim (NS _ (UN "prim__arraySet")) =
     mlfLibCall "Array.unsafe_set" [mlfVar (UN "arr"), mlfVar (UN "i"), mlfVar (UN "x")]
 mlfExtPrim (NS _ (UN "prim__newIORef")) =
   mlfLam [UN "_ty", UN "x", UN "_world"] $
-    mlfLibCall "Stdlib.ref" [mlfVar (UN "x")]
+    sexp [text "makevec", show "1", mlfVar (UN "x")]
 mlfExtPrim (NS _ (UN "prim__readIORef")) =
   mlfLam [UN "_ty", UN "ref", UN "_world"] $
-    mlfLibCall "Stdlib.!" [mlfVar (UN "ref")]
+    sexp [text "load", mlfVar (UN "ref"), show "0"]
 mlfExtPrim (NS _ (UN "prim__writeIORef")) =
   mlfLam [UN "_ty", UN "ref", UN "x", UN "_world"] $
-    mlfLibCall "Rts.IORef.write" [mlfVar (UN "ref"), mlfVar (UN "x")] -- Stdlib.:= is lexically troublesome
+    sexp [text "store", mlfVar (UN "ref"), show "0", mlfVar (UN "x")]
 mlfExtPrim n = mlfError $ "unimplemented external primitive: " ++ show n
 
 mlfConstant : Constant -> Doc
