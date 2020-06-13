@@ -76,21 +76,9 @@
           (store.byte $bytes (+ $ofs 2) (| 128 (& (>> $c 6) 63)))
           (store.byte $bytes (+ $ofs 3) (| 128 (& $c 63))))))))
 
-  ($bytes-allocate
-    (lambda ($size)
-      (makevec.byte $size 0)))
-
   ($bytes-length
     (lambda ($bytes)
       (length.byte $bytes)))
-
-  (rec ($bytes-blit
-    (lambda ($src $ofs-src $dst $ofs-dst $len)
-      (switch $len
-        (0 0)
-        (_ (seq
-          (store.byte $dst $ofs-dst (load.byte $src $ofs-src))
-          (apply $bytes-blit $src (+ $ofs-src 1) $dst (+ $ofs-dst 1) (- $len 1))))))))
 
   ; must be in the same order as the .mli file
   (export
@@ -98,8 +86,6 @@
     $utf8-read
     $utf8-write
 
-    $bytes-allocate
-    $bytes-length
-    $bytes-blit))
+    $bytes-length))
 
 ; vim: ft=lisp et sw=2 ts=2 sts=2
