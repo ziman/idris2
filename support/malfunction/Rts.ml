@@ -126,7 +126,7 @@ module String = struct
             | LowLevel.Malformed -> failwith "malformed string"
           in decode [] 0
 
-    let pack (cs : char idris_list) : string =
+    let pack (cs : char idris_list) : bytes =
         let total_length = IdrisList.foldl (fun l c -> l + LowLevel.utf8_width c) 0 cs in
         let result = Bytes.create total_length in
         let rec fill (ofs : int) = function
