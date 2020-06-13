@@ -507,6 +507,7 @@ compileExpr c execDir tm outfile
                coreLift $ writeFile (bld </> fn) src
 
          copy "LowLevel.mlf"
+         copy "LowLevel.mli"
          copy "Rts.ml"
          copy "rts.c"
          generateMlf c tm (bld </> "Main.mlf")
@@ -518,10 +519,11 @@ compileExpr c execDir tm outfile
                 , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.mli"
                 , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.ml"
                 , "&& cc -O2 " ++ flags ++ " -c rts.c -I $(ocamlc -where)"
+                , "&& ocamlfind opt -I +threads " ++ flags ++ " -c LowLevel.mli"
                 , "&& malfunction cmx LowLevel.mlf"
                 , "&& malfunction cmx Main.mlf"
                 , "&& ocamlfind opt -thread -package zarith -linkpkg "
-                    ++ flags ++ " Rts.cmx LowLevel.cmx Main.cmx rts.o -o ../" ++ outfile
+                    ++ flags ++ " LowLevel.cmx Rts.cmx Main.cmx rts.o -o ../" ++ outfile
                 , ")"
                 ]
          ok <- coreLift $ system cmd

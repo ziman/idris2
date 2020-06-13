@@ -117,8 +117,9 @@
 
         (block (tag 0) (+ $clen $origlen) $bytes))))
 
+  ; must be in the same order as the .mli file
   (export
-    $utf8-uncons
-    $utf8-cons))
+    $utf8-cons
+    $utf8-uncons))
 
 ; vim: ft=lisp et sw=2 ts=2 sts=2
