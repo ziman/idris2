@@ -35,7 +35,7 @@ end
 
 module String = struct
     let reverse (src : bytes) : bytes =
-        let len = LowLevel.bytes_length src in
+        let len = Bytes.length src in
         let dst = Bytes.create len in
         let rec go (ofs_src : int) (ofs_dst : int) =
             match ofs_dst with
@@ -67,8 +67,8 @@ module String = struct
 
     let cons (c : char) (s : bytes) : bytes =
         let w = LowLevel.utf8_width c in
-        let l = LowLevel.bytes_length s in
-        let s' = Bytes.create (w + LowLevel.bytes_length s) in
+        let l = Bytes.length s in
+        let s' = Bytes.create (w + Bytes.length s) in
         LowLevel.utf8_write c 0 s';
         Bytes.blit s 0 s' w l;
         s'
@@ -92,7 +92,7 @@ module String = struct
         | LowLevel.EOF -> failwith "String.tail: empty string"
         | LowLevel.Character (_, w) ->
             let nbytes = Bytes.length s - w in
-            let s' = Bytes.create nbytes (* LowLevel.bytes_allocate nbytes *) in
+            let s' = Bytes.create nbytes in
             Bytes.blit s w s' 0 nbytes;
             s'
         | LowLevel.Malformed -> failwith "malformed string"
@@ -126,13 +126,13 @@ module Bytes = struct
     (* pre-allocate a big buffer once and copy all strings in it *)
     let concat (ssi : bytes idris_list) : bytes =
         let ss = IdrisList.to_list ssi in
-        let total_length = List.fold_left (fun l s -> l + LowLevel.bytes_length s) 0 ss in
+        let total_length = List.fold_left (fun l s -> l + Bytes.length s) 0 ss in
         let result = Bytes.create total_length in
         let rec write_strings (ofs : int) = function
             | IdrisList.Nil -> ()
             | IdrisList.UNUSED _ -> failwith "UNUSED"
             | IdrisList.Cons (src, rest) ->
-                let len = LowLevel.bytes_length src in
+                let len = Bytes.length src in
                 Bytes.blit src 0 result ofs len;
                 write_strings (ofs+len) rest
           in
@@ -140,8 +140,8 @@ module Bytes = struct
         result
 
     let append (x : bytes) (y : bytes) : bytes =
-        let xlen = LowLevel.bytes_length x in
-        let ylen = LowLevel.bytes_length y in
+        let xlen = Bytes.length x in
+        let ylen = Bytes.length y in
         let result = Bytes.create (xlen + ylen) in
         Bytes.blit x 0 result 0 xlen;
         Bytes.blit y 0 result xlen ylen;
