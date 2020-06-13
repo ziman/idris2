@@ -173,16 +173,14 @@ mlfOp (Cast IntType CharType) [x] = x
 mlfOp (Cast IntegerType StringType) [x] = mlfLibCall "Z.to_string" [x]
 mlfOp (Cast IntType StringType) [x] = mlfLibCall "Stdlib.string_of_int" [x]
 
--- TODO: utf8
 mlfOp StrLength [x] = mlfLibCall "Rts.String.length" [x]
 mlfOp StrHead [x] = mlfLibCall "Rts.String.head" [x]
 mlfOp StrTail [x] = mlfLibCall "Rts.String.tail" [x]
-mlfOp StrIndex [x, i] = mlfLibCall "String.get" [x, i]
-mlfOp StrCons [x, xs] = mlfLibCall "Stdlib.^"
-  [mlfLibCall "String.make" [show 1, x], xs]  -- not sure about the efficiency of this one
-mlfOp StrReverse [x] = mlfError "unimplemented mlfOp StrReverse" -- mlfLibCall "Rts.String.reverse" [x]
-mlfOp StrSubstr [off, len, s] = mlfLibCall "String.sub" [s, off, len]
-mlfOp StrAppend [x,y] = mlfLibCall "Stdlib.^" [x,y]
+mlfOp StrIndex [x, i] = mlfLibCall "Rts.String.get" [x, i]
+mlfOp StrCons [x, xs] = mlfLibCall "Rts.String.cons" [x, xs]
+mlfOp StrReverse [x] = mlfLibCall "Rts.String.reverse" [x]
+mlfOp StrSubstr [off, len, s] = mlfLibCall "Rts.String.sub" [s, off, len]
+mlfOp StrAppend [x,y] = mlfLibCall "Rts.Bytes.append" [x, y]
 mlfOp Crash [_, msg] = mlfLibCall "Stdlib.failwith" [msg]
 mlfOp BelieveMe [_, _, x] = x
 mlfOp op args = mlfError $ "unimplemented primop: " ++ show op
