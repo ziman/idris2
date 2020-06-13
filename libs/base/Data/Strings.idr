@@ -19,7 +19,7 @@ foldl1 f (x::xs) = foldl f x xs
 -- enough room in advance so there's only one allocation, rather than lots!
 %foreign
     "scheme:string-concat"
-    "ML:Rts.String.concat"
+    "ML:Rts.Bytes.concat"
 export
 fastAppend : List String -> String
 
