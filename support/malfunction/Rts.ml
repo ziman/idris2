@@ -77,8 +77,8 @@ module String = struct
         match LowLevel.utf8_read 0 s with
         | LowLevel.EOF -> failwith "String.tail: empty string"
         | LowLevel.Character (_, w) ->
-            let nbytes = LowLevel.bytes_length s in
-            let s' = LowLevel.bytes_allocate (nbytes - w) in
+            let nbytes = LowLevel.bytes_length s - w in
+            let s' = LowLevel.bytes_allocate nbytes in
             LowLevel.bytes_blit s w s' 0 nbytes;
             s'
         | LowLevel.Malformed -> failwith "malformed string"
