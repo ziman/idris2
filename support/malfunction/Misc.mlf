@@ -13,14 +13,14 @@
   ;
   ; this is meant to be compatible with an Idris representation
   ($utf8-uncons
-    (lambda ($bs)
-      (switch $bs
+    (lambda ($str)
+      (switch $str
         (0 0)  ; empty string
         ((tag 0)
           (let
-            ($len (field 1 $bs))
-            ($ofs (field 2 $bs))
-            ($bytes (field 3 $bs))
+            ($len (field 1 $str))
+            ($ofs (field 2 $str))
+            ($bytes (field 3 $str))
               (switch $len
                 (0 0)  ; empty string
                 (_
@@ -74,6 +74,52 @@
                                   (+ $ofs 4)
                                   (- $len 4)
                                   $bytes)))))))))))))))
+
+  ($utf8-cons
+    (lambda ($c $str)
+      (let
+        ($clen
+          (if (< $c 128) 1
+            (if (< $c 2048) 2
+              (if (< $c 65536) 3
+                4))))
+        ($origlen
+          (switch $str
+            (0 0)
+            ((tag 1) (field $str 1))))
+        ($bytes
+          (switch $str
+            (0 (makevec.byte $clen 0))
+            ((tag 1) (let
+              ($ofs (field $str 0))
+              ($len (field $str 1))
+              ($src (field $str 2))
+              ($dst (makevec.byte (+ $clen $len) 0))
+              (rec
+                ($blit (lambda ($ofs-src $ofs-dst $n)
+                  (switch $n
+                    (0 0)
+                    (_ (seq
+                      (store.byte $dst $ofs-dst (load.byte $src $ofs-src))
+                      (apply $blit (+ $ofs-src 1) (+ $ofs-dst 1) (- $n 1))))))))
+              (_ (apply $blit 0 $clen $len))
+              $dst))))
+        (_ (switch $clen
+          (1 (store.byte $bytes 0 $c))
+          (2 (seq
+               (store.byte $bytes 0 (| 192 (& (>> $c 6) 31)))
+               (store.byte $bytes 1 (| 128 (& $c 63)))))
+          (3 (seq
+               (store.byte $bytes 0 (| 224 (& (>> $c 12) 15)))
+               (store.byte $bytes 1 (| 128 (& (>> $c 6) 63)))
+               (store.byte $bytes 2 (| 128 (& $c 63)))))
+          (_ (seq
+               (store.byte $bytes 0 (| 240 (& (>> $c 18) 7)))
+               (store.byte $bytes 1 (| 128 (& (>> $c 12) 63)))
+               (store.byte $bytes 2 (| 128 (& (>> $c 6) 63)))
+               (store.byte $bytes 3 (| 128 (& $c 63)))))))
+
+        (block 0 (+ $clen $origlen) $bytes))))
 
   (export))
 
