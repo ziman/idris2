@@ -82,6 +82,19 @@ module String = struct
             LowLevel.bytes_blit s w s' 0 nbytes;
             s'
         | LowLevel.Malformed -> failwith "malformed string"
+
+    let unpack (s : bytes) : char idris_list =
+        let rec decode (acc : char list) (ofs : int) =
+            match LowLevel.utf8_read ofs s with
+            | LowLevel.EOF ->
+              let rec rev (acc : char idris_list) = function
+                  | [] -> acc
+                  | x :: xs -> rev (Cons (x, acc)) xs
+                in rev Nil acc
+            | LowLevel.Character (c, w) ->
+                decode (c :: acc) (ofs + w)
+            | LowLevel.Malformed -> failwith "malformed string"
+          in decode [] 0
 end
 
 module Debug = struct
