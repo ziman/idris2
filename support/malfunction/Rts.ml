@@ -33,34 +33,7 @@ module System = struct
         Thread.create sub World
 end
 
-module Bytes = struct
-    (* pre-allocate a big buffer once and copy all strings in it *)
-    let concat (ssi : bytes idris_list) : bytes =
-        let ss = IdrisList.to_list ssi in
-        let total_length = List.fold_left (fun l s -> l + LowLevel.bytes_length s) 0 ss in
-        let result = LowLevel.bytes_allocate total_length in
-        let rec write_strings (ofs : int) = function
-            | IdrisList.Nil -> ()
-            | IdrisList.UNUSED _ -> failwith "UNUSED"
-            | IdrisList.Cons (src, rest) ->
-                let len = LowLevel.bytes_length src in
-                LowLevel.bytes_blit src 0 result ofs len;
-                write_strings (ofs+len) rest
-          in
-        write_strings 0 ssi;
-        result
-
-    let append (x : bytes) (y : bytes) : bytes =
-        let xlen = LowLevel.bytes_length x in
-        let ylen = LowLevel.bytes_length y in
-        let result = LowLevel.bytes_allocate (xlen + ylen) in
-        LowLevel.bytes_blit x 0 result 0 xlen;
-        LowLevel.bytes_blit y 0 result xlen ylen;
-        result
-end
-
 module String = struct
-    let get (s : bytes) (i : int) : char = failwith "Rts.String.get not implemented"
     let reverse (s : bytes) : bytes = failwith "Rts.String.reverse not implemented"
     let sub (ofs : int) (len : int) (s : bytes) : bytes = failwith "Rts.String.sub not implemented"
 
@@ -95,6 +68,17 @@ module String = struct
             s'
         | LowLevel.Malformed -> failwith "malformed string"
 
+    let get (s : bytes) (i : int) : char =
+        let rec go (j : int) (ofs : int) =
+            match LowLevel.utf8_read ofs s with
+            | LowLevel.EOF -> failwith "string too short"
+            | LowLevel.Character (c, w) ->
+                (match j with
+                | 0 -> c
+                | _ -> go (j - 1) (ofs + w))
+            | LowLevel.Malformed -> failwith "malformed string"
+          in go i 0
+
     let unpack (s : bytes) : char idris_list =
         let rec decode (acc : char list) (ofs : int) =
             match LowLevel.utf8_read ofs s with
@@ -107,6 +91,32 @@ module String = struct
                 decode (c :: acc) (ofs + w)
             | LowLevel.Malformed -> failwith "malformed string"
           in decode [] 0
+end
+
+module Bytes = struct
+    (* pre-allocate a big buffer once and copy all strings in it *)
+    let concat (ssi : bytes idris_list) : bytes =
+        let ss = IdrisList.to_list ssi in
+        let total_length = List.fold_left (fun l s -> l + LowLevel.bytes_length s) 0 ss in
+        let result = LowLevel.bytes_allocate total_length in
+        let rec write_strings (ofs : int) = function
+            | IdrisList.Nil -> ()
+            | IdrisList.UNUSED _ -> failwith "UNUSED"
+            | IdrisList.Cons (src, rest) ->
+                let len = LowLevel.bytes_length src in
+                LowLevel.bytes_blit src 0 result ofs len;
+                write_strings (ofs+len) rest
+          in
+        write_strings 0 ssi;
+        result
+
+    let append (x : bytes) (y : bytes) : bytes =
+        let xlen = LowLevel.bytes_length x in
+        let ylen = LowLevel.bytes_length y in
+        let result = LowLevel.bytes_allocate (xlen + ylen) in
+        LowLevel.bytes_blit x 0 result 0 xlen;
+        LowLevel.bytes_blit y 0 result xlen ylen;
+        result
 end
 
 module Debug = struct
