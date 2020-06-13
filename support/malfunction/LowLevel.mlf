@@ -7,6 +7,8 @@
   ;
   ; this has to be implemented in MLF
   ; because we can't use Bytes.get: MLF does not implement %bytes_(un)safe_get
+  ;
+  ; TODO: check that the top 2 bits of continuation bytes are 10
   ($utf8-read
     (lambda ($ofs $bytes)
       (let
