@@ -39,15 +39,20 @@ module String = struct
         | Empty
         | Allocated of int * int * Bytes.t
 
+    type uncons =
+        | Nil
+        | Cons of char * idris_string
+        | Malformed
+
     (* pre-allocate a big buffer once and copy all strings in it *)
     let concat (ssi : string idris_list) : string =
         let ss = IdrisList.to_list ssi in
         let total_length = List.fold_left (fun l s -> l + String.length s) 0 ss in
         let result = Bytes.make total_length (Char.chr 0) in
         let rec write_strings (ofs : int) = function
-            | Nil -> ()
-            | UNUSED _ -> failwith "UNUSED"
-            | Cons (s, ss) ->
+            | IdrisList.Nil -> ()
+            | IdrisList.UNUSED _ -> failwith "UNUSED"
+            | IdrisList.Cons (s, ss) ->
                 let src = Bytes.unsafe_of_string s in
                 let len = Bytes.length src in
                 Bytes.blit src 0 result ofs len;
