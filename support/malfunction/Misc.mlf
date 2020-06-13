@@ -1,17 +1,13 @@
 ; utf8-string representation:
 ;
 ; int 0: empty string
-; block/tag1 (int ofs) (int len) (byte vector bs): non-empty string
-;
-; this is meant to be compatible with an Idris representation
+; block/tag0 (int ofs) (int len) (byte vector bs): non-empty string
 (module
   ; uncons:
   ;   utf8-string ->
   ;     int 0: empty string
-  ;     block/tag1 (int head) (utf8-string tail)
-  ;     int 3: decoding error
-  ;
-  ; this is meant to be compatible with an Idris representation
+  ;     block/tag0 (int head) (utf8-string tail)
+  ;     int 1: decoding error
   ($utf8-uncons
     (lambda ($str)
       (switch $str
@@ -27,50 +23,50 @@
                   (let ($h (load.byte $bytes $ofs))
                     (if (< $h 128)
                       ; character encoded as single byte (ascii range)
-                      (block (tag 1)
+                      (block (tag 0)
                         $h
-                        (block (tag 1)
+                        (block (tag 0)
                           (+ $ofs 1)
                           (- $len 1)
                           $bytes))
                       (if (< $h 192)
                         ; this is a continuation byte!
-                        3  ; decoding error
+                        1  ; decoding error
                         (if (< $h 224)
                           ; character encoded in two bytes
                           (if (< $len 2)
-                            3  ; decoding error
-                            (block (tag 1)
+                            1  ; decoding error
+                            (block (tag 0)
                               (|
                                 (<< (& $h 31) 6)
                                 (& (load.byte $bytes (+ $ofs 1)) 63))
-                              (block (tag 1)
+                              (block (tag 0)
                                 (+ $ofs 2)
                                 (- $len 2)
                                 $bytes)))
                           (if (< $h 240)
                             ; character encoded in three bytes
                             (if (< $len 3)
-                              3  ; decoding error
-                              (block (tag 1)
+                              1  ; decoding error
+                              (block (tag 0)
                                 (|
                                   (<< (& $h 15) 12)
                                   (<< (& (load.byte $bytes (+ $ofs 1)) 63) 6)
                                   (& (load.byte $bytes (+ $ofs 2)) 63))
-                                (block (tag 1)
+                                (block (tag 0)
                                   (+ $ofs 3)
                                   (- $len 3)
                                   $bytes)))
                             ; character encoded in four bytes
                             (if (< $len 4)
-                              3  ; decoding error
-                              (block (tag 1)
+                              1  ; decoding error
+                              (block (tag 0)
                                 (|
                                   (<< (& $h 7) 18)
                                   (<< (& (load.byte $bytes (+ $ofs 1)) 63) 12)
                                   (<< (& (load.byte $bytes (+ $ofs 2)) 63) 6)
                                   (& (load.byte $bytes (+ $ofs 3)) 63))
-                                (block (tag 1)
+                                (block (tag 0)
                                   (+ $ofs 4)
                                   (- $len 4)
                                   $bytes)))))))))))))))
@@ -86,11 +82,11 @@
         ($origlen
           (switch $str
             (0 0)
-            ((tag 1) (field $str 1))))
+            ((tag 0) (field $str 1))))
         ($bytes
           (switch $str
             (0 (makevec.byte $clen 0))
-            ((tag 1) (let
+            ((tag 0) (let
               ($ofs (field $str 0))
               ($len (field $str 1))
               ($src (field $str 2))
