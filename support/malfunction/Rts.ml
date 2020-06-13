@@ -36,7 +36,7 @@ end
 module String = struct
     let reverse (src : bytes) : bytes =
         let len = LowLevel.bytes_length src in
-        let dst = LowLevel.bytes_allocate len in
+        let dst = Bytes.create len in
         let rec go (ofs_src : int) (ofs_dst : int) =
             match ofs_dst with
             | 0 -> dst
@@ -61,16 +61,16 @@ module String = struct
     let sub (ofs_chars : int) (nchars : int) (s : bytes) : bytes =
         let ofs = get_end_ofs 0 ofs_chars s in
         let len = get_end_ofs ofs nchars s - ofs in
-        let result = LowLevel.bytes_allocate len in
+        let result = Bytes.create len in
         Bytes.blit s ofs result 0 len;
         result
 
     let cons (c : char) (s : bytes) : bytes =
         let w = LowLevel.utf8_width c in
         let l = LowLevel.bytes_length s in
-        let s' = LowLevel.bytes_allocate (w + LowLevel.bytes_length s) in
+        let s' = Bytes.create (w + LowLevel.bytes_length s) in
         LowLevel.utf8_write c 0 s';
-        LowLevel.bytes_blit s 0 s' w l;
+        Bytes.blit s 0 s' w l;
         s'
 
     let length (s : bytes) : int =
@@ -91,9 +91,9 @@ module String = struct
         match LowLevel.utf8_read 0 s with
         | LowLevel.EOF -> failwith "String.tail: empty string"
         | LowLevel.Character (_, w) ->
-            let nbytes = LowLevel.bytes_length s - w in
-            let s' = LowLevel.bytes_allocate nbytes in
-            LowLevel.bytes_blit s w s' 0 nbytes;
+            let nbytes = Bytes.length s - w in
+            let s' = Bytes.create nbytes (* LowLevel.bytes_allocate nbytes *) in
+            Bytes.blit s w s' 0 nbytes;
             s'
         | LowLevel.Malformed -> failwith "malformed string"
 
@@ -127,13 +127,13 @@ module Bytes = struct
     let concat (ssi : bytes idris_list) : bytes =
         let ss = IdrisList.to_list ssi in
         let total_length = List.fold_left (fun l s -> l + LowLevel.bytes_length s) 0 ss in
-        let result = LowLevel.bytes_allocate total_length in
+        let result = Bytes.create total_length in
         let rec write_strings (ofs : int) = function
             | IdrisList.Nil -> ()
             | IdrisList.UNUSED _ -> failwith "UNUSED"
             | IdrisList.Cons (src, rest) ->
                 let len = LowLevel.bytes_length src in
-                LowLevel.bytes_blit src 0 result ofs len;
+                Bytes.blit src 0 result ofs len;
                 write_strings (ofs+len) rest
           in
         write_strings 0 ssi;
@@ -142,9 +142,9 @@ module Bytes = struct
     let append (x : bytes) (y : bytes) : bytes =
         let xlen = LowLevel.bytes_length x in
         let ylen = LowLevel.bytes_length y in
-        let result = LowLevel.bytes_allocate (xlen + ylen) in
-        LowLevel.bytes_blit x 0 result 0 xlen;
-        LowLevel.bytes_blit y 0 result xlen ylen;
+        let result = Bytes.create (xlen + ylen) in
+        Bytes.blit x 0 result 0 xlen;
+        Bytes.blit y 0 result xlen ylen;
         result
 end
 
