@@ -41,6 +41,7 @@ module String = struct
         let w = LowLevel.utf8_width c in
         let l = LowLevel.bytes_length s in
         let s' = LowLevel.bytes_allocate (w + LowLevel.bytes_length s) in
+        LowLevel.utf8_write c 0 s';
         LowLevel.bytes_blit s 0 s' w l;
         s'
 
