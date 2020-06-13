@@ -134,6 +134,9 @@ mlfBlock (Just tag) args = parens $
   text "block" <++> sexp [text "tag", show tag]
   $$ indentBlock args
 
+mlfCmp : String -> String -> String -> List Doc -> Doc
+mlfCmp conv cmp zero args = sexp [text cmp, mlfLibCall conv args, text zero]
+
 mlfOp : PrimFn arity -> Vect arity Doc -> Doc
 mlfOp (Add IntType) [x,y] = sexp [text "+.int", x,y]
 mlfOp (Sub IntType) [x,y] = sexp [text "-.int", x,y]
@@ -181,8 +184,16 @@ mlfOp StrCons [x, xs] = mlfLibCall "Rts.String.cons" [x, xs]
 mlfOp StrReverse [x] = mlfLibCall "Rts.String.reverse" [x]
 mlfOp StrSubstr [off, len, s] = mlfLibCall "Rts.String.sub" [s, off, len]
 mlfOp StrAppend [x,y] = mlfLibCall "Bytes.cat" [x, y]
+
+mlfOp (LT StringType) [x,y] = mlfCmp "String.compare" "<.int" "0" [x,y]
+mlfOp (LTE StringType) [x,y] = mlfCmp "String.compare" "<=.int" "0" [x,y]
+mlfOp (EQ StringType) [x,y] = mlfCmp "String.compare" "==.int" "0" [x,y]
+mlfOp (GTE StringType) [x,y] = mlfCmp "String.compare" ">=.int" "0" [x,y]
+mlfOp (GT StringType) [x,y] = mlfCmp "String.compare" ">.int" "0" [x,y]
+
 mlfOp Crash [_, msg] = mlfLibCall "Stdlib.failwith" [msg]
 mlfOp BelieveMe [_, _, x] = x
+
 mlfOp op args = mlfError $ "unimplemented primop: " ++ show op
 
 {-
