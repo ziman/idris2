@@ -17,7 +17,6 @@ module Types = struct
             | UNUSED _ -> failwith "UNUSED tag in idris list"
             | Cons (x, xs) -> x :: to_list xs
     end
-
 end
 open Types
 open Types.IdrisList
@@ -36,8 +35,38 @@ end
 
 module String = struct
     type t = LowLevel.utf8
+    type strM = 
+        | StrNil               (* int 0 *)
+        | UNUSED of int        (* block, tag 0 *)
+        | StrCons of char * t  (* block, tag 1 *)
 
     let cons : char -> t -> t = LowLevel.utf8_cons
+
+    let uncons (s : t) : strM =
+        match LowLevel.utf8_uncons s with
+        | LowLevel.Nil -> StrNil
+        | LowLevel.Cons (x, xs) -> StrCons (x, xs)
+        | LowLevel.Malformed -> failwith "uncons: malformed string"
+
+    let length : t -> int =
+        let rec go (acc : int) (s : t) =
+            match LowLevel.utf8_uncons s with
+            | LowLevel.Nil -> 0
+            | LowLevel.Cons (_, xs) -> go (acc + 1) xs
+            | LowLevel.Malformed -> failwith "uncons: malformed string"
+        in go 0
+
+    let head (s : t) : char =
+        match LowLevel.utf8_uncons s with
+        | LowLevel.Nil -> failwith "Rts.String.head: empty string"
+        | LowLevel.Cons (x, _) -> x
+        | LowLevel.Malformed -> failwith "Rts.String.head: malformed string"
+
+    let tail (s : t) : t =
+        match LowLevel.utf8_uncons s with
+        | LowLevel.Nil -> failwith "Rts.String.head: empty string"
+        | LowLevel.Cons (_, xs) -> xs
+        | LowLevel.Malformed -> failwith "Rts.String.head: malformed string"
 
     (* pre-allocate a big buffer once and copy all strings in it *)
     let concat (ssi : string idris_list) : string =

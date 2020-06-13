@@ -174,9 +174,9 @@ mlfOp (Cast IntegerType StringType) [x] = mlfLibCall "Z.to_string" [x]
 mlfOp (Cast IntType StringType) [x] = mlfLibCall "Stdlib.string_of_int" [x]
 
 -- TODO: utf8
-mlfOp StrLength [x] = mlfError "unimplemented strLength"
-mlfOp StrHead [x] = mlfError "unimplemented strHead"
-mlfOp StrTail [x] = mlfError "unimplemented strTail"
+mlfOp StrLength [x] = mlfLibCall "Rts.String.length" [x]
+mlfOp StrHead [x] = mlfLibCall "Rts.String.head" [x]
+mlfOp StrTail [x] = mlfLibCall "Rts.String.tail" [x]
 mlfOp StrIndex [x, i] = mlfLibCall "String.get" [x, i]
 mlfOp StrCons [x, xs] = mlfLibCall "Stdlib.^"
   [mlfLibCall "String.make" [show 1, x], xs]  -- not sure about the efficiency of this one
@@ -515,6 +515,7 @@ compileExpr c execDir tm outfile
          let flags = if debug then "-g" else ""
          let cmd = unwords
                 [ "(cd " ++ bld
+                , "&& { rm -f Rts.mli *.cmi *.cmx *.o || true }"
                 , "&& ocamlfind opt -I +threads " ++ flags ++ " -i Rts.ml > Rts.mli"
                 , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.mli"
                 , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.ml"
