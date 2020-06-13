@@ -36,6 +36,13 @@ module System = struct
 
     let fork_thread (sub : world -> unit) : Thread.t =
         Thread.create sub World
+
+    let os_name : string =
+        match Sys.os_type with
+        | "Unix" -> "unix"
+        | "Win32" -> "windows"
+        | "Cygwin" -> "windows"
+        | _ -> "unknown"
 end
 
 module String = struct

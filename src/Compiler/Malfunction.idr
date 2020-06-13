@@ -259,6 +259,8 @@ mlfExtPrim (NS _ (UN "prim__writeIORef")) =
 mlfExtPrim (NS _ (UN "prim__schemeCall")) =
   mlfLam [UN "_rTy", UN "fn", UN "_args", UN "_world"] $
     mlfLibCall "Stdlib.failwith" [mlfVar (UN "fn")]
+mlfExtPrim (NS _ (UN "prim__codegen")) = mlfString "malfunction"
+mlfExtPrim (NS _ (UN "prim__os")) = mlfGlobal "Rts.System.os_name"
 mlfExtPrim n = mlfError $ "unimplemented external primitive: " ++ show n
 
 mlfConstant : Constant -> Doc
