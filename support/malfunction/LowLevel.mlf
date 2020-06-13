@@ -49,9 +49,9 @@
                             (if (< $len 3)
                               1  ; decoding error
                               (block (tag 0)
-                                (|
+                                (|(|
                                   (<< (& $h 15) 12)
-                                  (<< (& (load.byte $bytes (+ $ofs 1)) 63) 6)
+                                  (<< (& (load.byte $bytes (+ $ofs 1)) 63) 6))
                                   (& (load.byte $bytes (+ $ofs 2)) 63))
                                 (block (tag 0)
                                   (+ $ofs 3)
@@ -61,10 +61,10 @@
                             (if (< $len 4)
                               1  ; decoding error
                               (block (tag 0)
-                                (|
+                                (|(|(|
                                   (<< (& $h 7) 18)
-                                  (<< (& (load.byte $bytes (+ $ofs 1)) 63) 12)
-                                  (<< (& (load.byte $bytes (+ $ofs 2)) 63) 6)
+                                  (<< (& (load.byte $bytes (+ $ofs 1)) 63) 12))
+                                  (<< (& (load.byte $bytes (+ $ofs 2)) 63) 6))
                                   (& (load.byte $bytes (+ $ofs 3)) 63))
                                 (block (tag 0)
                                   (+ $ofs 4)
@@ -82,14 +82,14 @@
         ($origlen
           (switch $str
             (0 0)
-            ((tag 0) (field $str 1))))
+            ((tag 0) (field 1 $str))))
         ($bytes
           (switch $str
             (0 (makevec.byte $clen 0))
             ((tag 0) (let
-              ($ofs (field $str 0))
-              ($len (field $str 1))
-              ($src (field $str 2))
+              ($ofs (field 0 $str))
+              ($len (field 1 $str))
+              ($src (field 2 $str))
               ($dst (makevec.byte (+ $clen $len) 0))
               (rec
                 ($blit (lambda ($ofs-src $ofs-dst $n)
@@ -115,8 +115,10 @@
                (store.byte $bytes 2 (| 128 (& (>> $c 6) 63)))
                (store.byte $bytes 3 (| 128 (& $c 63)))))))
 
-        (block 0 (+ $clen $origlen) $bytes))))
+        (block (tag 0) (+ $clen $origlen) $bytes))))
 
-  (export))
+  (export
+    $utf8-uncons
+    $utf8-cons))
 
 ; vim: ft=lisp et sw=2 ts=2 sts=2
