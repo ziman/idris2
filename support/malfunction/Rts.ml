@@ -49,9 +49,21 @@ module Bytes = struct
           in
         write_strings 0 ssi;
         result
+
+    let append (x : bytes) (y : bytes) : bytes =
+        let xlen = LowLevel.bytes_length x in
+        let ylen = LowLevel.bytes_length y in
+        let result = LowLevel.bytes_allocate (xlen + ylen) in
+        LowLevel.bytes_blit x 0 result 0 xlen;
+        LowLevel.bytes_blit y 0 result xlen ylen;
+        result
 end
 
 module String = struct
+    let get (s : bytes) (i : int) : char = failwith "Rts.String.get not implemented"
+    let reverse (s : bytes) : bytes = failwith "Rts.String.reverse not implemented"
+    let sub (ofs : int) (len : int) (s : bytes) : bytes = failwith "Rts.String.sub not implemented"
+
     let cons (c : char) (s : bytes) : bytes =
         let w = LowLevel.utf8_width c in
         let l = LowLevel.bytes_length s in
