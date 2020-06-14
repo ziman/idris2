@@ -110,7 +110,7 @@ module System = struct
             | Ok hnd -> Some hnd
             | Err -> None
 
-        let closedir (hnd : Unix.dir_handle option) (_ : world) : unit =
+        let close (hnd : Unix.dir_handle option) (_ : world) : unit =
             match hnd with
             | None -> ()
             | Some hnd -> match catch Unix.closedir hnd with
