@@ -56,6 +56,8 @@ module System = struct
         | "Cygwin" -> "windows"
         | _ -> "unknown"
 
+    (* mutable global variable because the idris API requires it *)
+    (* this is definitely not a good idea once we get threads... *)
     let global_errno : int ref = ref 0
     let get_errno (_ : world) : int = !global_errno
     (*
@@ -67,24 +69,24 @@ module System = struct
           _ => pure $ Left (GenericFileError (err-5))
     *)
 
+    type 'a catch_result =
+        | Err
+        | Ok of 'a
+
+    let catch (f : 'a -> 'b) (x : 'a) : 'b catch_result =
+        try Ok (f x) with
+          Unix.Unix_error (err, fname, arg) ->
+            global_errno := (
+              match err with
+              | Unix.ENOENT -> 2
+              | Unix.EACCES -> 3
+              | Unix.EEXIST -> 4
+              | Unix.EUNKNOWNERR nr -> nr
+              | _ -> 255
+            );
+            Err
+
     module Directory = struct
-        type 'a catch_result =
-            | Err
-            | Ok of 'a
-
-        let catch (f : 'a -> 'b) (x : 'a) : 'b catch_result =
-            try Ok (f x) with
-              Unix.Unix_error (err, fname, arg) ->
-                global_errno := (
-                  match err with
-                  | Unix.ENOENT -> 2
-                  | Unix.EACCES -> 3
-                  | Unix.EEXIST -> 4
-                  | Unix.EUNKNOWNERR nr -> nr
-                  | _ -> 255
-                );
-                Err
-
         let get_current (_ : world) : string option =
             match catch Unix.getcwd () with
             | Ok cwd -> Some cwd
