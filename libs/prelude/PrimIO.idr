@@ -119,12 +119,17 @@ export
 onCollect : Ptr t -> (Ptr t -> IO ()) -> IO (GCPtr t)
 onCollect ptr c = primIO (prim__onCollect ptr (\x => toPrim (c x)))
 
-%foreign "C:idris2_getString, libidris2_support"
+%foreign
+  "C:idris2_getString, libidris2_support"
+  "ML:Option.get"  -- represented as (string option) in ML
 export
 prim__getString : Ptr String -> String
 
-%foreign "C:idris2_getStr,libidris2_support"
+%foreign
+  "C:idris2_getStr,libidris2_support"
+  "ML:Stdlib.read_line"
 prim__getStr : PrimIO String
+
 %foreign
   "C:idris2_putStr,libidris2_support"
   "ML:Stdlib.print_string"

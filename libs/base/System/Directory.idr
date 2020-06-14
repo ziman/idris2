@@ -9,7 +9,9 @@ DirPtr = AnyPtr
 support : String -> String
 support fn = "C:" ++ fn ++ ", libidris2_support"
 
-%foreign support "idris2_fileErrno"
+%foreign
+  support "idris2_fileErrno"
+  "ML:Rts.System.get_errno"
 prim_fileErrno : PrimIO Int
 
 returnError : IO (Either FileError a)
@@ -26,25 +28,39 @@ returnError
 ok : a -> IO (Either FileError a)
 ok x = pure (Right x)
 
-%foreign support "idris2_currentDirectory"
+%foreign
+  support "idris2_currentDirectory"
+  "ML:Rts.System.Directory.get_current"
 prim_currentDir : PrimIO (Ptr String)
 
-%foreign support "idris2_changeDir"
+%foreign
+  support "idris2_changeDir"
+  "ML:Rts.System.Directory.change"
 prim_changeDir : String -> PrimIO Int
 
-%foreign support "idris2_createDir"
+%foreign
+  support "idris2_createDir"
+  "ML:Rts.System.Directory.create"
 prim_createDir : String -> PrimIO Int
 
-%foreign support "idris2_openDir"
+%foreign
+  support "idris2_openDir"
+  "ML:Rts.System.Directory.opendir"
 prim_openDir : String -> PrimIO DirPtr
 
-%foreign support "idris2_closeDir"
+%foreign
+  support "idris2_closeDir"
+  "ML:Rts.System.Directory.close"
 prim_closeDir : DirPtr -> PrimIO ()
 
-%foreign support "idris2_removeDir"
+%foreign
+  support "idris2_removeDir"
+  "ML:Rts.System.Directory.remove"
 prim_removeDir : String -> PrimIO ()
 
-%foreign support "idris2_nextDirEntry"
+%foreign
+  support "idris2_nextDirEntry"
+  "ML:Rts.System.Directory.next_entry"
 prim_dirEntry : DirPtr -> PrimIO (Ptr String)
 
 export
