@@ -182,7 +182,7 @@ mlfOp StrTail [x] = mlfLibCall "Rts.String.tail" [x]
 mlfOp StrIndex [x, i] = mlfLibCall "Rts.String.get" [x, i]
 mlfOp StrCons [x, xs] = mlfLibCall "Rts.String.cons" [x, xs]
 mlfOp StrReverse [x] = mlfLibCall "Rts.String.reverse" [x]
-mlfOp StrSubstr [off, len, s] = mlfLibCall "Rts.String.sub" [s, off, len]
+mlfOp StrSubstr [off, len, s] = mlfLibCall "Rts.String.sub" [off, len, s]
 mlfOp StrAppend [x,y] = mlfLibCall "Bytes.cat" [x, y]
 
 mlfOp (LT StringType) [x,y] = mlfCmp "String.compare" "<.int" "0" [x,y]
