@@ -26,6 +26,16 @@ end
 open Types
 open Types.IdrisList
 
+module Debug = struct
+    (* %foreign "ML:Rts.Debug.inspect"
+     * prim__inspect : (x : a) -> (1 w : %World) -> IORes ()
+     *
+     * inspect : a -> IO ()
+     * inspect x = primIO (prim__inspect x)
+     *)
+    external inspect : 'ty -> 'a -> unit = "inspect"
+end
+
 module IORef = struct
     let write (r : 'a ref) (x : 'a) : unit = r := x
 end
@@ -62,20 +72,14 @@ module String = struct
           in go 0 len
 
     (* get the byte offset after skipping N chars from the starting byte offset *)
+    (* this function stops at the end of the string without throwing an error there *)
     let rec get_end_ofs (ofs : int) (nchars : int) (s : bytes) : int =
         match nchars with
         | 0 -> ofs
         | _ -> match LowLevel.utf8_read ofs s with
-            | LowLevel.EOF -> failwith "string too short"
+            | LowLevel.EOF -> ofs (* failwith "string too short" *)
             | LowLevel.Character (_, w) -> get_end_ofs (ofs + w) (nchars - 1) s
             | LowLevel.Malformed -> failwith "malformed string"
-
-    let sub (ofs_chars : int) (nchars : int) (s : bytes) : bytes =
-        let ofs = get_end_ofs 0 ofs_chars s in
-        let len = get_end_ofs ofs nchars s - ofs in
-        let result = Bytes.create len in
-        Bytes.blit s ofs result 0 len;
-        result
 
     let cons (c : char) (s : bytes) : bytes =
         let w = LowLevel.utf8_width c in
@@ -92,6 +96,13 @@ module String = struct
             | LowLevel.Character (_, w) -> go (acc + 1) (ofs + w)
             | LowLevel.Malformed -> failwith "malformed string"
           in go 0 0
+
+    let sub (ofs_chars : int) (nchars : int) (s : bytes) : bytes =
+        let ofs = get_end_ofs 0 ofs_chars s in
+        let len = get_end_ofs ofs nchars s - ofs in
+        let result = Bytes.create len in
+        Bytes.blit s ofs result 0 len;
+        result
 
     let head (s : bytes) : char =
         match LowLevel.utf8_read 0 s with
@@ -169,16 +180,6 @@ module Bytes = struct
         Bytes.blit x 0 result 0 xlen;
         Bytes.blit y 0 result xlen ylen;
         result
-end
-
-module Debug = struct
-    (* %foreign "ML:Rts.Debug.inspect"
-     * prim__inspect : (x : a) -> (1 w : %World) -> IORes ()
-     *
-     * inspect : a -> IO ()
-     * inspect x = primIO (prim__inspect x)
-     *)
-    external inspect : 'ty -> 'a -> unit = "inspect"
 end
 
 module File = struct
