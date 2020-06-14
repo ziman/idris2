@@ -352,7 +352,11 @@ ccLibFun [] = Nothing
 ccLibFun (cc :: ccs) =
   if substr 0 3 cc == "ML:"
     then Just (substr 3 (length cc) cc)
-    else ccLibFun ccs
+    else if substr 0 2 cc == "C:"
+        then case split (== ',') (substr 2 (length cc) cc) of
+          [fn, libn] => Just ("Rts.C.Lib_" ++ trim libn ++ "." ++ fn)
+          _ => ccLibFun ccs  -- something strange -> skip
+        else ccLibFun ccs  -- search further
 
 {-
 unApp : NamedCExp -> List NamedCExp -> (NamedCExp, List NamedCExp)
