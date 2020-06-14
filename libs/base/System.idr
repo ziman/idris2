@@ -34,9 +34,13 @@ export
 getArgs : HasIO io => io (List String)
 getArgs = primIO prim__getArgs
 
-%foreign libc "getenv"
+%foreign
+  libc "getenv"
+  "ML:Sys.getenv_opt"
 prim_getEnv : String -> PrimIO (Ptr String)
-%foreign support "idris2_getEnvPair"
+
+%foreign
+  support "idris2_getEnvPair"
 prim_getEnvPair : Int -> PrimIO (Ptr String)
 %foreign support "idris2_setenv"
 prim_setEnv : String -> String -> Int -> PrimIO Int
