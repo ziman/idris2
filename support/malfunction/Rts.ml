@@ -26,6 +26,8 @@ end
 open Types
 open Types.IdrisList
 
+let not_implemented msg = failwith ("not implemented yet: " ^ msg)
+
 module Debug = struct
     (* %foreign "ML:Rts.Debug.inspect"
      * prim__inspect : (x : a) -> (1 w : %World) -> IORes ()
@@ -53,6 +55,75 @@ module System = struct
         | "Win32" -> "windows"
         | "Cygwin" -> "windows"
         | _ -> "unknown"
+
+    let global_errno : int ref = ref 0
+    let get_errno (_ : world) : int = !global_errno
+    (*
+          0 => pure $ Left FileReadError
+          1 => pure $ Left FileWriteError
+          2 => pure $ Left FileNotFound
+          3 => pure $ Left PermissionDenied
+          4 => pure $ Left FileExists
+          _ => pure $ Left (GenericFileError (err-5))
+    *)
+
+    module Directory = struct
+        type 'a catch_result =
+            | Err
+            | Ok of 'a
+
+        let catch (f : 'a -> 'b) (x : 'a) : 'b catch_result =
+            try Ok (f x) with
+              Unix.Unix_error (err, fname, arg) ->
+                global_errno := (
+                  match err with
+                  | Unix.ENOENT -> 2
+                  | Unix.EACCES -> 3
+                  | Unix.EEXIST -> 4
+                  | Unix.EUNKNOWNERR nr -> nr
+                  | _ -> 255
+                );
+                Err
+
+        let get_current (_ : world) : string option =
+            match catch Unix.getcwd () with
+            | Ok cwd -> Some cwd
+            | Err -> None
+
+        let change (dn : string) (_ : world) : int =
+            match catch Unix.chdir dn with
+            | Ok () -> 0
+            | Err -> 1
+
+        let create (dn : string) (_ : world) : int =
+            match catch (Unix.mkdir dn) 0o755 with
+            | Ok () -> 0
+            | Err -> 1
+
+        let remove (dn : string) (_ : world) : unit =
+            match catch Unix.rmdir dn with
+            | Ok () -> ()
+            | Err -> ()
+
+        let opendir (dn : string) (_ : world) : Unix.dir_handle option =
+            match catch Unix.opendir dn with
+            | Ok hnd -> Some hnd
+            | Err -> None
+
+        let closedir (hnd : Unix.dir_handle option) (_ : world) : unit =
+            match hnd with
+            | None -> ()
+            | Some hnd -> match catch Unix.closedir hnd with
+              | Ok () -> ()
+              | Err -> ()
+
+        let next_entry (hnd : Unix.dir_handle option) (_ : world) : string option =
+            match hnd with
+            | None -> None
+            | Some hnd -> match catch Unix.readdir hnd with
+              | Ok fname -> Some fname
+              | Err -> None
+    end
 end
 
 module String = struct
