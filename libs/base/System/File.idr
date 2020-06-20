@@ -19,17 +19,14 @@ libc fn = "C:" ++ fn ++ ", libc 6"
 
 %foreign
   support "idris2_openFile"
-  "ML:Rts.System.File.fopen"
 prim__open : String -> String -> Int -> PrimIO FilePtr
 
 %foreign
   support "idris2_closeFile"
-  "ML:Rts.System.File.close"
 prim__close : FilePtr -> PrimIO ()
 
 %foreign
   support "idris2_fileError"
-  "ML:Rts.System.File.get_error"
 prim_error : FilePtr -> PrimIO Int
 
 %foreign support "idris2_fileErrno"

@@ -92,7 +92,6 @@ cCall ret fn args = fromPrim (prim__cCall ret fn args)
 
 %foreign
   "C:idris2_isNull, libidris2_support"
-  "ML:Option.is_none"
 export
 prim__nullAnyPtr : AnyPtr -> Int
 
