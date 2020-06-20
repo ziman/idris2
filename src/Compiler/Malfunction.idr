@@ -490,71 +490,76 @@ mlfRec defs = parens $
 
 generateMlf : Ref Ctxt Defs ->
                ClosedTerm -> (outfile : String) -> Core ()
-generateMlf c tm outfile
-    = do cdata <- getCompileData Cases tm
-         let ndefs = namedDefs cdata
-         let ctm = forget (mainExpr cdata)
-         let ldefs = lazyDefs ndefs
+generateMlf c tm outfile = do
+  cdata <- getCompileData Cases tm
+  let ndefs = namedDefs cdata
+  let ctm = forget (mainExpr cdata)
+  let ldefs = lazyDefs ndefs
 
-         defsMlf <- traverse (pure . mlfDef ldefs) ndefs
-         mainMlf <- pure $ mlfTm ldefs ctm
-         let code = render " " $ parens (
-                text "module"
-                $$ indent (
-                     mlfRec defsMlf
-                  $$ parens (text "_" <++> mainMlf)
-                  $$ text ""
-                  $$ parens (text "export")
-                )
-               )
-               $$ text ""
-               $$ text "; vim: ft=lisp"
-               $$ text ""  -- end with a newline
-         Right () <- coreLift $ writeFile outfile code
-            | Left err => throw (FileErr outfile err)
-         pure ()
+  defsMlf <- traverse (pure . mlfDef ldefs) ndefs
+  mainMlf <- pure $ mlfTm ldefs ctm
+  let code = render " " $ parens (
+        text "module"
+        $$ indent (
+             mlfRec defsMlf
+          $$ parens (text "_" <++> mainMlf)
+          $$ text ""
+          $$ parens (text "export")
+          )
+        )
+        $$ text ""
+        $$ text "; vim: ft=lisp"
+        $$ text ""  -- end with a newline
+  Right () <- coreLift $ writeFile outfile code
+    | Left err => throw (FileErr outfile err)
+  pure ()
 
 compileExpr : Ref Ctxt Defs -> (execDir : String) ->
               ClosedTerm -> (outfile : String) -> Core (Maybe String)
-compileExpr c execDir tm outfile
-    = do let bld = execDir </> "mlf-" ++ outfile
-         coreLift $ mkdirAll bld
+compileExpr c execDir tm outfile = do
+  let bld = execDir </> "mlf-" ++ outfile
+  coreLift $ mkdirAll bld
 
-         let copy = \fn => with Core.Core.(>>=) do
-               src <- readDataFile ("malfunction" </> fn)
-               coreLift $ writeFile (bld </> fn) src
+  let copy = \fn => with Core.Core.(>>=) do
+       src <- readDataFile ("malfunction" </> fn)
+       coreLift $ writeFile (bld </> fn) src
 
-         copy "LowLevel.mlf"
-         copy "LowLevel.mli"
-         copy "Rts.ml"
-         copy "rts.c"
-         generateMlf c tm (bld </> "Main.mlf")
+  -- TMP HACK
+  do
+    src <- readDataFile (".." </> "lib" </> "libidris2_support.a")
+    coreLift $ writeFile (bld </> "libidris2_support.a") src
 
-         let flags = if debug then "-g" else ""
-         let cmd = unwords
-                [ "(cd " ++ bld
-                -- clean up
-                , "&& { rm -f Rts.mli *.cmi *.cmx *.o || true; }"
-                -- C
-                , "&& cc -O2 " ++ flags ++ " -c rts.c -I $(ocamlc -where)"
-                -- LowLevel
-                , "&& ocamlfind opt -I +threads " ++ flags ++ " -c LowLevel.mli"
-                , "&& malfunction cmx LowLevel.mlf"
-                -- Rts
-                , "&& ocamlfind opt -I +threads " ++ flags ++ " -i Rts.ml > Rts.mli"
-                , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.mli"
-                , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.ml"
-                -- Main
-                , "&& malfunction cmx Main.mlf"
-                -- link it all together
-                , "&& ocamlfind opt -thread -package zarith -linkpkg "
-                    ++ flags ++ " rts.o LowLevel.cmx Rts.cmx Main.cmx -o ../" ++ outfile
-                , ")"
-                ]
-         ok <- coreLift $ system cmd
-         if ok == 0
-            then pure (Just (execDir </> outfile))
-            else pure Nothing
+  copy "LowLevel.mlf"
+  copy "LowLevel.mli"
+  copy "Rts.ml"
+  copy "rts.c"
+  generateMlf c tm (bld </> "Main.mlf")
+
+  let flags = if debug then "-g" else ""
+  let cmd = unwords
+        [ "(cd " ++ bld
+        -- clean up
+        , "&& { rm -f Rts.mli *.cmi *.cmx *.o || true; }"
+        -- C
+        , "&& cc -O2 " ++ flags ++ " -c rts.c -I $(ocamlc -where)"
+        -- LowLevel
+        , "&& ocamlfind opt -I +threads " ++ flags ++ " -c LowLevel.mli"
+        , "&& malfunction cmx LowLevel.mlf"
+        -- Rts
+        , "&& ocamlfind opt -I +threads " ++ flags ++ " -i Rts.ml > Rts.mli"
+        , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.mli"
+        , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.ml"
+        -- Main
+        , "&& malfunction cmx Main.mlf"
+        -- link it all together
+        , "&& ocamlfind opt -thread -package zarith -linkpkg -nodynlink "
+            ++ flags ++ " rts.o libidris2_support.a LowLevel.cmx Rts.cmx Main.cmx -o ../" ++ outfile
+        , ")"
+        ]
+  ok <- coreLift $ system cmd
+  if ok == 0
+    then pure (Just (execDir </> outfile))
+    else pure Nothing
 
 executeExpr : Ref Ctxt Defs -> (execDir : String) -> ClosedTerm -> Core ()
 executeExpr c execDir tm
