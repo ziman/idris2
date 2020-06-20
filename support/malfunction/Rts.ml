@@ -126,6 +126,28 @@ module System = struct
               | Ok fname -> Some fname
               | Err -> None
     end
+
+    module File = struct
+        type t =
+            | FileR of in_channel
+            | FileW of out_channel
+
+        let rec fopen (path : string) (mode : string) (_ : int) : t option =
+            try
+                Some (match mode with
+                | "r" -> FileR (open_in path)
+                | "w" -> FileW (open_out path)
+                | "rb" -> FileR (open_in_bin path)
+                | "wb" -> FileW (open_out_bin path)
+                | _ -> failwith ("unknown file open mode: " ^ mode))
+            with Sys_error msg -> None
+
+        let rec close (f : t option) (_ : world) : unit =
+            match f with
+            | Some (FileR chan) -> close_in chan
+            | Some (FileW chan) -> close_out chan
+            | None -> ()
+    end
 end
 
 module String = struct
@@ -255,22 +277,6 @@ module Bytes = struct
         result
 end
 
-module File = struct
-    type file_ptr =
-        | FileR of in_channel
-        | FileW of out_channel
-
-    let rec fopen (path : string) (mode : string) (_ : int) : file_ptr option =
-        try
-            Some(match mode with
-            | "r" -> FileR (open_in path)
-            | "w" -> FileW (open_out path)
-            | "rb" -> FileR (open_in_bin path)
-            | "wb" -> FileW (open_out_bin path)
-            | _ -> failwith ("unknown file open mode: " ^ mode))
-        with Sys_error msg -> None
-end
-
 (* some test code *)
 module Demo = struct
     external c_hello : int -> string = "c_hello"
@@ -282,4 +288,10 @@ module Demo = struct
         print_string "returning from ocaml";
         print_newline ();
         secret
+end
+
+module C = struct
+    module Lib_libidris2_support = struct
+        external idris2_putStr : string -> unit = "idris2_putStr"
+    end
 end
