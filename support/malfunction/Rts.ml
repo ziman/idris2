@@ -55,99 +55,6 @@ module System = struct
         | "Win32" -> "windows"
         | "Cygwin" -> "windows"
         | _ -> "unknown"
-
-    (* mutable global variable because the idris API requires it *)
-    (* this is definitely not a good idea once we get threads... *)
-    let global_errno : int ref = ref 0
-    let get_errno (_ : world) : int = !global_errno
-    (*
-          0 => pure $ Left FileReadError
-          1 => pure $ Left FileWriteError
-          2 => pure $ Left FileNotFound
-          3 => pure $ Left PermissionDenied
-          4 => pure $ Left FileExists
-          _ => pure $ Left (GenericFileError (err-5))
-    *)
-
-    type 'a catch_result =
-        | Err
-        | Ok of 'a
-
-    let catch (f : 'a -> 'b) (x : 'a) : 'b catch_result =
-        try Ok (f x) with
-          Unix.Unix_error (err, fname, arg) ->
-            global_errno := (
-              match err with
-              | Unix.ENOENT -> 2
-              | Unix.EACCES -> 3
-              | Unix.EEXIST -> 4
-              | Unix.EUNKNOWNERR nr -> nr
-              | _ -> 255
-            );
-            Err
-
-    module Directory = struct
-        let get_current (_ : world) : string option =
-            match catch Unix.getcwd () with
-            | Ok cwd -> Some cwd
-            | Err -> None
-
-        let change (dn : string) (_ : world) : int =
-            match catch Unix.chdir dn with
-            | Ok () -> 0
-            | Err -> 1
-
-        let create (dn : string) (_ : world) : int =
-            match catch (Unix.mkdir dn) 0o755 with
-            | Ok () -> 0
-            | Err -> 1
-
-        let remove (dn : string) (_ : world) : unit =
-            match catch Unix.rmdir dn with
-            | Ok () -> ()
-            | Err -> ()
-
-        let opendir (dn : string) (_ : world) : Unix.dir_handle option =
-            match catch Unix.opendir dn with
-            | Ok hnd -> Some hnd
-            | Err -> None
-
-        let close (hnd : Unix.dir_handle option) (_ : world) : unit =
-            match hnd with
-            | None -> ()
-            | Some hnd -> match catch Unix.closedir hnd with
-              | Ok () -> ()
-              | Err -> ()
-
-        let next_entry (hnd : Unix.dir_handle option) (_ : world) : string option =
-            match hnd with
-            | None -> None
-            | Some hnd -> match catch Unix.readdir hnd with
-              | Ok fname -> Some fname
-              | Err -> None
-    end
-
-    module File = struct
-        type t =
-            | FileR of in_channel
-            | FileW of out_channel
-
-        let rec fopen (path : string) (mode : string) (_ : int) : t option =
-            try
-                Some (match mode with
-                | "r" -> FileR (open_in path)
-                | "w" -> FileW (open_out path)
-                | "rb" -> FileR (open_in_bin path)
-                | "wb" -> FileW (open_out_bin path)
-                | _ -> failwith ("unknown file open mode: " ^ mode))
-            with Sys_error msg -> None
-
-        let rec close (f : t option) (_ : world) : unit =
-            match f with
-            | Some (FileR chan) -> close_in chan
-            | Some (FileW chan) -> close_out chan
-            | None -> ()
-    end
 end
 
 module String = struct
@@ -277,29 +184,17 @@ module Bytes = struct
         result
 end
 
-(* some test code *)
-module Demo = struct
-    external c_hello : int -> string = "c_hello"
-
-    let hello_world (_ : unit) : string =
-        print_string "hello from ocaml, getting a secret string from C";
-        print_newline ();
-        let secret = c_hello 42 in
-        print_string "returning from ocaml";
-        print_newline ();
-        secret
-end
-
 module C = struct
     type 'a pointer
 
     module Lib_libidris2_support = struct
-        external idris2_putStr : string -> unit = "idris2_putStr"
-        external idris2_isNull : 'a pointer -> bool = "idris2_isNull"
-        external idris2_getString : string pointer -> string = "idris2_getString"
+        external idris2_putStr : string -> unit = "ml_idris2_putStr"
+        external idris2_isNull : 'a pointer -> bool = "ml_idris2_isNull"
+        external idris2_getString : string pointer -> string = "ml_idris2_getString"
+        external idris2_getEnvPair : int -> string pointer = "ml_idris2_getEnvPair"
     end
 
     module Lib_libc6 = struct
-        external getenv : string -> string pointer = "getenv"
+        external getenv : string -> string pointer = "ml_getenv"
     end
 end

@@ -34,12 +34,9 @@ export
 getArgs : IO (List String)
 getArgs = primIO prim__getArgs
 
-%foreign
-  libc "getenv"
+%foreign libc "getenv"
 prim_getEnv : String -> PrimIO (Ptr String)
-
-%foreign
-  support "idris2_getEnvPair"
+%foreign support "idris2_getEnvPair"
 prim_getEnvPair : Int -> PrimIO (Ptr String)
 %foreign support "idris2_setenv"
 prim_setEnv : String -> String -> Int -> PrimIO Int
@@ -50,9 +47,10 @@ export
 getEnv : String -> IO (Maybe String)
 getEnv var
    = do env <- primIO $ prim_getEnv var
+        printLn $ prim__nullPtr env
         if prim__nullPtr env /= 0
-           then pure Nothing
-           else pure (Just (prim__getString env))
+           then printLn "A" *> pure Nothing
+           else printLn "B" *> pure (Just (prim__getString env))
 
 export
 getEnvironment : IO (List (String, String))

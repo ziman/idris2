@@ -78,3 +78,31 @@ CAMLprim value idris_cons(value x, value xs)
   Store_field (xxs, 1, xs);
   CAMLreturn (xxs);
 }
+
+CAMLprim value ml_idris2_putStr(value s)
+{
+	CAMLparam1(s);
+	idris2_putStr(String_val(s));
+	CAMLreturn(Val_int(0));
+}
+
+CAMLprim value ml_idris2_getString(value sptr)
+{
+	CAMLparam1(sptr);
+	const char * result = idris2_getString((void *) sptr);
+	CAMLreturn((value) result);
+}
+
+CAMLprim value ml_idris2_getEnvPair(value i)
+{
+	CAMLparam1(i);
+	const char * result = idris2_getEnvPair(Int_val(i));
+	CAMLreturn((value) result);
+}
+
+CAMLprim value ml_getenv(value s)
+{
+	CAMLparam1(s);
+	const char * result = getenv(String_val(s));
+	CAMLreturn((value) result);
+}
