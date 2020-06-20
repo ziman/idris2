@@ -525,9 +525,8 @@ compileExpr c execDir tm outfile = do
        coreLift $ writeFile (bld </> fn) src
 
   -- TMP HACK
-  do
-    src <- readDataFile (".." </> "lib" </> "libidris2_support.a")
-    coreLift $ writeFile (bld </> "libidris2_support.a") src
+  coreLift $ system $ unwords
+    ["cp", "~/.idris2/idris2-0.2.0/lib/libidris2_support.a", bld]
 
   copy "LowLevel.mlf"
   copy "LowLevel.mli"
