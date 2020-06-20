@@ -291,7 +291,15 @@ module Demo = struct
 end
 
 module C = struct
+    type 'a pointer
+
     module Lib_libidris2_support = struct
         external idris2_putStr : string -> unit = "idris2_putStr"
+        external idris2_isNull : 'a pointer -> bool = "idris2_isNull"
+        external idris2_getString : string pointer -> string = "idris2_getString"
+    end
+
+    module Lib_libc6 = struct
+        external getenv : string -> string pointer = "getenv"
     end
 end

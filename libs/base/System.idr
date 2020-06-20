@@ -36,7 +36,6 @@ getArgs = primIO prim__getArgs
 
 %foreign
   libc "getenv"
-  "ML:Sys.getenv_opt"
 prim_getEnv : String -> PrimIO (Ptr String)
 
 %foreign

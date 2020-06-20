@@ -95,7 +95,6 @@ cCall ret fn args = primIO (prim__cCall ret fn args)
 
 %foreign
   "C:idris2_isNull, libidris2_support"
-  "ML:Option.is_none"
 export
 prim__nullAnyPtr : AnyPtr -> Int
 
@@ -121,18 +120,15 @@ onCollect ptr c = primIO (prim__onCollect ptr (\x => toPrim (c x)))
 
 %foreign
   "C:idris2_getString, libidris2_support"
-  "ML:Option.get"  -- represented as (string option) in ML
 export
 prim__getString : Ptr String -> String
 
 %foreign
   "C:idris2_getStr,libidris2_support"
-  "ML:Stdlib.read_line"
 prim__getStr : PrimIO String
 
 %foreign
   "C:idris2_putStr,libidris2_support"
-  "ML:Stdlib.print_string"
 prim__putStr : String -> PrimIO ()
 
 ||| Output a string to stdout without a trailing newline.

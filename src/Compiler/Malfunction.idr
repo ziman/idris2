@@ -354,9 +354,12 @@ ccLibFun (cc :: ccs) =
     then Just (substr 3 (length cc) cc)
     else if substr 0 2 cc == "C:"
         then case split (== ',') (substr 2 (length cc) cc) of
-          [fn, libn] => Just ("Rts.C.Lib_" ++ trim libn ++ "." ++ fn)
+          [fn, libn] => Just ("Rts.C.Lib_" ++ rmSpaces libn ++ "." ++ fn)
           _ => ccLibFun ccs  -- something strange -> skip
         else ccLibFun ccs  -- search further
+  where
+    rmSpaces : String -> String
+    rmSpaces = pack . filter (/= ' ') . unpack
 
 {-
 unApp : NamedCExp -> List NamedCExp -> (NamedCExp, List NamedCExp)
