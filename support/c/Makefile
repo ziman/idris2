@@ -54,4 +54,4 @@ install: build
 	mkdir -p ${PREFIX}/idris2-${IDRIS2_VERSION}/lib
 	install $(LIBTARGET) $(DYLIBTARGET) ${PREFIX}/idris2-${IDRIS2_VERSION}/lib
 	mkdir -p ${PREFIX}/idris2-${IDRIS2_VERSION}/support/c
-	install *.h $(LIBTARGET) {PREFIX}/idris2-${IDRIS2_VERSION}/support/c
+	install *.h $(LIBTARGET) ${PREFIX}/idris2-${IDRIS2_VERSION}/support/c
