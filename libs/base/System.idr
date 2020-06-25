@@ -47,7 +47,6 @@ export
 getEnv : String -> IO (Maybe String)
 getEnv var
    = do env <- primIO $ prim_getEnv var
-        printLn $ prim__nullPtr env
         if prim__nullPtr env /= 0
            then pure Nothing
            else pure (Just (prim__getString env))
