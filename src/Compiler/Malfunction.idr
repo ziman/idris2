@@ -528,8 +528,9 @@ compileExpr c execDir tm outfile = do
        coreLift $ writeFile (bld </> fn) src
 
   -- TMP HACK
+  -- .a and .h files
   coreLift $ system $ unwords
-    ["cp", "~/.idris2/idris2-0.2.0/lib/libidris2_support.a", bld]
+    ["cp", "~/.idris2/idris2-0.2.0/support/c/*", bld]
 
   copy "LowLevel.mlf"
   copy "LowLevel.mli"
