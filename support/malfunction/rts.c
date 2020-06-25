@@ -8,6 +8,13 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "getline.h"
+#include "idris_buffer.h"
+#include "idris_directory.h"
+#include "idris_file.h"
+#include "idris_net.h"
+#include "idris_support.h"
+
 CAMLprim value c_hello(value i) {
 	CAMLparam0();
 	const char * const msg = "hello from C!";
@@ -105,4 +112,11 @@ CAMLprim value ml_getenv(value s)
 	CAMLparam1(s);
 	const char * result = getenv(String_val(s));
 	CAMLreturn((value) result);
+}
+
+CAMLprim value ml_idris2_isNull(value ptr)
+{
+	CAMLparam1(ptr);
+	const int result = idris2_isNull((void *) ptr);
+	CAMLreturn(Val_int(result));
 }

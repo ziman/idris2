@@ -49,8 +49,8 @@ getEnv var
    = do env <- primIO $ prim_getEnv var
         printLn $ prim__nullPtr env
         if prim__nullPtr env /= 0
-           then printLn "A" *> pure Nothing
-           else printLn "B" *> pure (Just (prim__getString env))
+           then pure Nothing
+           else pure (Just (prim__getString env))
 
 export
 getEnvironment : HasIO io => io (List (String, String))
