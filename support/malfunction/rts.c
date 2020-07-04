@@ -103,7 +103,7 @@ CAMLprim value ml_idris2_getStr()
 CAMLprim value ml_idris2_getString(value sptr)
 {
 	CAMLparam1(sptr);
-	const char * result = idris2_getString((void *) sptr);
+	value result = caml_copy_string(idris2_getString((void *)sptr));
 	CAMLreturn((value) result);
 }
 
