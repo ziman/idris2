@@ -93,6 +93,13 @@ CAMLprim value ml_idris2_putStr(value s)
 	CAMLreturn(Val_int(0));
 }
 
+CAMLprim value ml_idris2_getStr()
+{
+	CAMLparam0();
+	const char * result = caml_copy_string(idris2_getStr()); 
+	CAMLreturn((value) result);
+}
+
 CAMLprim value ml_idris2_getString(value sptr)
 {
 	CAMLparam1(sptr);
@@ -119,4 +126,18 @@ CAMLprim value ml_idris2_isNull(value ptr)
 	CAMLparam1(ptr);
 	const int result = idris2_isNull((void *) ptr);
 	CAMLreturn(Val_int(result));
+}
+
+CAMLprim value ml_system(value s)
+{
+	CAMLparam1(s);
+	const int result = system(String_val(s));
+	CAMLreturn(Val_int(result));
+}
+
+CAMLprim value ml_exit(value s)
+{
+	CAMLparam1(s);
+	exit(Int_val(s));
+	CAMLreturn(Val_int(0));
 }
