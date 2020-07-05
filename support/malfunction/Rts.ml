@@ -238,8 +238,11 @@ module C = struct
         external system : string -> int = "ml_system"
         external exit : int -> unit = "ml_exit"
         external fflush : 'file pointer -> int = "ml_fflush"
+        external fdopen : int -> string -> 'file pointer = "ml_fdopen"
         external chmod : string -> int -> int = "ml_chmod"
 
+        external putchar : char -> int = "ml_putchar"
+        external getchar : unit -> int = "ml_getchar"
         external strlen : string -> int = "ml_strlen"
     end
 end

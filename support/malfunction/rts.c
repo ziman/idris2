@@ -109,13 +109,6 @@ CAMLprim value ml_idris2_getEnvPair(value i)
 	CAMLreturn((value) result);
 }
 
-CAMLprim value ml_getenv(value s)
-{
-	CAMLparam1(s);
-	const char * result = getenv(String_val(s));
-	CAMLreturn((value) result);
-}
-
 CAMLprim value ml_idris2_isNull(value ptr)
 {
 	CAMLparam1(ptr);
@@ -124,19 +117,7 @@ CAMLprim value ml_idris2_isNull(value ptr)
 }
 
 
-CAMLprim value ml_system(value s)
-{
-	CAMLparam1(s);
-	const int result = system(String_val(s));
-	CAMLreturn(Val_int(result));
-}
 
-CAMLprim value ml_exit(value s)
-{
-	CAMLparam1(s);
-	exit(Int_val(s));
-	CAMLreturn(Val_int(0));
-}
 
 CAMLprim value ml_idris2_putStr(value s)
 {
@@ -248,18 +229,6 @@ CAMLprim value ml_idris2_stderr() {
   CAMLreturn((value) result);
 }
 
-CAMLprim value ml_fflush(value file) {
-  CAMLparam1(file);
-  const int result = fflush((FILE *)file);
-  CAMLreturn(Val_int(result));
-}
-
-CAMLprim value ml_chmod(value path, value mode) {
-  CAMLparam2(path, mode);
-  const int result = chmod((const char *)path, Int_val(mode));
-  CAMLreturn(Val_int(result));
-}
-
 CAMLprim value ml_idris2_currentDirectory() {
   CAMLparam0();
   value result = caml_copy_string(idris2_currentDirectory());
@@ -298,8 +267,61 @@ CAMLprim value ml_idris2_removeDir(value dir) {
 
 CAMLprim value ml_idris2_nextDirEntry(value dir) {
   CAMLparam1(dir);
-  const char *result = caml_copy_string(idris2_nextDirEntry((void *)dir));
-  CAMLreturn(Val_string(result));
+  const value result = caml_copy_string(idris2_nextDirEntry((void *)dir));
+  CAMLreturn(result);
+}
+
+/*  libc stuff  */
+
+CAMLprim value ml_getenv(value s)
+{
+	CAMLparam1(s);
+	const char * result = getenv(String_val(s));
+	CAMLreturn((value) result);
+}
+
+CAMLprim value ml_system(value s)
+{
+	CAMLparam1(s);
+	const int result = system(String_val(s));
+	CAMLreturn(Val_int(result));
+}
+
+CAMLprim value ml_exit(value s)
+{
+	CAMLparam1(s);
+	exit(Int_val(s));
+	CAMLreturn(Val_int(0));
+}
+
+CAMLprim value ml_fflush(value file) {
+  CAMLparam1(file);
+  const int result = fflush((FILE *)file);
+  CAMLreturn(Val_int(result));
+}
+
+CAMLprim value ml_fdopen(value fd, value mode) {
+  CAMLparam2(fd, mode);
+  FILE * result = fdopen(Int_val(fd), String_val(mode));
+  CAMLreturn((value) result);
+}
+
+CAMLprim value ml_chmod(value path, value mode) {
+  CAMLparam2(path, mode);
+  const int result = chmod((const char *)path, Int_val(mode));
+  CAMLreturn(Val_int(result));
+}
+
+CAMLprim value ml_putchar(value c) {
+  CAMLparam1(c);
+  const int result = putchar(Int_val(c));
+  CAMLreturn(Val_int(result));
+}
+
+CAMLprim value ml_getchar() {
+  CAMLparam0();
+  const int result = getchar();
+  CAMLreturn(Val_int(result));
 }
 
 CAMLprim value ml_strlen(value str) {
