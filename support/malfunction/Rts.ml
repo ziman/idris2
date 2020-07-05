@@ -186,18 +186,60 @@ end
 
 module C = struct
     type 'a pointer
+(*    type 'file file_pointer *)
 
     module Lib_libidris2_support = struct
         external idris2_putStr : string -> unit = "ml_idris2_putStr"
         external idris2_isNull : 'a pointer -> bool = "ml_idris2_isNull"
         external idris2_getString : string pointer -> string = "ml_idris2_getString"
-        external idris2_getStr : string = "ml_idris2_getString"
+        external idris2_getStr : unit -> string = "ml_idris2_getString"
         external idris2_getEnvPair : int -> string pointer = "ml_idris2_getEnvPair"
+
+        external idris2_openFile : string -> string -> 'file pointer = "ml_idris2_openFile"
+        external idris2_closeFile : 'file pointer -> unit = "ml_idris2_closeFile"
+        external idris2_fileError : 'file pointer -> int = "ml_idris2_fileError"
+
+        external idris2_fileErrno : unit -> int = "ml_idris2_fileErrno"
+
+        external idris2_removeFile : string -> int = "ml_idris2_removeFile"
+        external idris2_fileSize : 'file pointer -> int = "ml_idris2_fileSize"
+
+        external idris2_fpoll : 'file pointer -> int = "ml_idris2_fpoll"
+
+        external idris2_readLine : 'file pointer -> string pointer = "ml_idris2_readLine"
+        external idris2_readChars : int -> 'file pointer -> string pointer = "ml_idris2_readChars"
+
+        external idris2_writeLine : 'file pointer -> string -> int = "ml_idris2_writeLine"
+
+        external idris2_eof : 'file pointer -> int = "ml_idris2_eof"
+        external idris2_fileAccessTime : 'file pointer -> int = "ml_idris2_fileAccessTime"
+        external idris2_fileModifiedTime : 'file pointer -> int = "ml_idris2_fileModifiedTime"
+        external idris2_fileStatusTime : 'file pointer -> int = "ml_idris2_fileStatusTime"
+
+        external idris2_stdin : unit -> 'file pointer = "ml_idris2_stdin"
+        external idris2_stdout : unit -> 'file pointer = "ml_idris2_stdout"
+        external idris2_stderr : unit -> 'file pointer = "ml_idris2_stderr"
+
+        (* TODO: wat? *)
+        external fgetc : 'file pointer -> int = "ml_fgetc"
+
+        external idris2_currentDirectory : unit -> string = "ml_idris2_currentDirectory"
+        external idris2_changeDir : string -> int = "ml_idris2_changeDir"
+        external idris2_createDir : string -> int = "ml_idris2_createDir"
+        external idris2_openDir : string -> 'a pointer = "ml_idris2_openDir"
+        external idris2_closeDir : 'a pointer -> unit = "ml_idris2_closeDir"
+        external idris2_removeDir : string -> int = "ml_idris2_removeDir"
+        external idris2_nextDirEntry : 'a pointer -> string = "ml_idris2_nextDirEntry"
     end
 
     module Lib_libc6 = struct
+
         external getenv : string -> string pointer = "ml_getenv"
         external system : string -> int = "ml_system"
-        external exit : int -> unit = "ml_exit"    
+        external exit : int -> unit = "ml_exit"
+        external fflush : 'file pointer -> int = "ml_fflush"
+        external chmod : string -> int -> int = "ml_chmod"
+
+        external strlen : string -> int = "ml_strlen"
     end
 end
