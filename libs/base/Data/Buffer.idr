@@ -13,14 +13,18 @@ import System.File
 export
 data Buffer : Type where [external]
 
-%foreign  "scheme:blodwen-buffer-size"
+%foreign
+  "scheme:blodwen-buffer-size"
+  "ML:Rts.C.Lib_libidris2_support.idris2_getBufferSize"
 prim__bufferSize : Buffer -> Int
 
 export
 rawSize : HasIO io => Buffer -> io Int
 rawSize buf = pure (prim__bufferSize buf)
 
-%foreign "scheme:blodwen-new-buffer"
+%foreign
+  "scheme:blodwen-new-buffer"
+  "ML:Rts.C.Lib_libidris2_support.idris2_newBuffer"
 prim__newBuffer : Int -> PrimIO Buffer
 
 export
@@ -37,9 +41,13 @@ export
 freeBuffer : HasIO io => Buffer -> io ()
 freeBuffer buf = pure ()
 
-%foreign "scheme:blodwen-buffer-setbyte"
+%foreign
+  "scheme:blodwen-buffer-setbyte"
+  "ML:Rts.C.Lib_libidris2_support.idris2_setBufferByte"
 prim__setByte : Buffer -> Int -> Int -> PrimIO ()
-%foreign "scheme:blodwen-buffer-setbyte"
+%foreign
+  "scheme:blodwen-buffer-setbyte"
+  "ML:Rts.C.Lib_libidris2_support.idris2_setBufferByte"
 prim__setBits8 : Buffer -> Int -> Bits8 -> PrimIO ()
 
 -- Assumes val is in the range 0-255
@@ -53,9 +61,13 @@ setBits8 : HasIO io => Buffer -> (loc : Int) -> (val : Bits8) -> io ()
 setBits8 buf loc val
     = primIO (prim__setBits8 buf loc val)
 
-%foreign "scheme:blodwen-buffer-getbyte"
+%foreign
+  "scheme:blodwen-buffer-getbyte"
+  "ML:Rts.C.Lib_libidris2_support.idris2_getBufferByte"
 prim__getByte : Buffer -> Int -> PrimIO Int
-%foreign "scheme:blodwen-buffer-getbyte"
+%foreign
+  "scheme:blodwen-buffer-getbyte"
+  "ML:Rts.C.Lib_libidris2_support.idris2_getBufferByte"
 prim__getBits8 : Buffer -> Int -> PrimIO Bits8
 
 export
@@ -68,7 +80,9 @@ getBits8 : HasIO io => Buffer -> (loc : Int) -> io Bits8
 getBits8 buf loc
     = primIO (prim__getBits8 buf loc)
 
-%foreign "scheme:blodwen-buffer-setbits16"
+%foreign
+  "scheme:blodwen-buffer-setbits16"
+  "ML:Rts.C.Lib_libidris2_support.idris2_setBufferInt"
 prim__setBits16 : Buffer -> Int -> Bits16 -> PrimIO ()
 
 export
@@ -76,7 +90,9 @@ setBits16 : HasIO io => Buffer -> (loc : Int) -> (val : Bits16) -> io ()
 setBits16 buf loc val
     = primIO (prim__setBits16 buf loc val)
 
-%foreign "scheme:blodwen-buffer-getbits16"
+%foreign
+  "scheme:blodwen-buffer-getbits16"
+  "ML:Rts.C.Lib_libidris2_support.idris2_setBufferInt"
 prim__getBits16 : Buffer -> Int -> PrimIO Bits16
 
 export
@@ -84,7 +100,9 @@ getBits16 : HasIO io => Buffer -> (loc : Int) -> io Bits16
 getBits16 buf loc
     = primIO (prim__getBits16 buf loc)
 
-%foreign "scheme:blodwen-buffer-setbits32"
+%foreign
+  "scheme:blodwen-buffer-setbits32"
+  "ML:Rts.C.Lib_libidris2_support.idris2_setBufferInt"
 prim__setBits32 : Buffer -> Int -> Bits32 -> PrimIO ()
 
 export
@@ -92,7 +110,9 @@ setBits32 : HasIO io => Buffer -> (loc : Int) -> (val : Bits32) -> io ()
 setBits32 buf loc val
     = primIO (prim__setBits32 buf loc val)
 
-%foreign "scheme:blodwen-buffer-getbits32"
+%foreign
+  "scheme:blodwen-buffer-getbits32"
+  "ML:Rts.C.Lib_libidris2_support.idris2_getBufferInt"
 prim__getBits32 : Buffer -> Int -> PrimIO Bits32
 
 export
@@ -100,7 +120,9 @@ getBits32 : HasIO io => Buffer -> (loc : Int) -> io Bits32
 getBits32 buf loc
     = primIO (prim__getBits32 buf loc)
 
-%foreign "scheme:blodwen-buffer-setbits64"
+%foreign
+  "scheme:blodwen-buffer-setbits64"
+  "ML:Rts.C.Lib_libidris2_support.idris2_setBufferInt"
 prim__setBits64 : Buffer -> Int -> Bits64 -> PrimIO ()
 
 export
@@ -108,7 +130,9 @@ setBits64 : HasIO io => Buffer -> (loc : Int) -> (val : Bits64) -> io ()
 setBits64 buf loc val
     = primIO (prim__setBits64 buf loc val)
 
-%foreign "scheme:blodwen-buffer-getbits64"
+%foreign
+  "scheme:blodwen-buffer-getbits64"
+  "ML:Rts.C.Lib_libidris2_support.idris2_getBufferInt"
 prim__getBits64 : Buffer -> Int -> PrimIO Bits64
 
 export
@@ -116,7 +140,9 @@ getBits64 : HasIO io => Buffer -> (loc : Int) -> io Bits64
 getBits64 buf loc
     = primIO (prim__getBits64 buf loc)
 
-%foreign "scheme:blodwen-buffer-setint32"
+%foreign
+  "scheme:blodwen-buffer-setint32"
+  "ML:Rts.C.Lib_libidris2_support.idris2_setBufferInt"
 prim__setInt32 : Buffer -> Int -> Int -> PrimIO ()
 
 export
@@ -124,7 +150,9 @@ setInt32 : HasIO io => Buffer -> (loc : Int) -> (val : Int) -> io ()
 setInt32 buf loc val
     = primIO (prim__setInt32 buf loc val)
 
-%foreign "scheme:blodwen-buffer-getint32"
+%foreign
+  "scheme:blodwen-buffer-getint32"
+  "ML:Rts.C.Lib_libidris2_support.idris2_getBufferInt"
 prim__getInt32 : Buffer -> Int -> PrimIO Int
 
 export
@@ -132,7 +160,9 @@ getInt32 : HasIO io => Buffer -> (loc : Int) -> io Int
 getInt32 buf loc
     = primIO (prim__getInt32 buf loc)
 
-%foreign "scheme:blodwen-buffer-setint"
+%foreign
+  "scheme:blodwen-buffer-setint"
+  "ML:Rts.C.Lib_libidris2_support.idris2_setBufferInt"
 prim__setInt : Buffer -> Int -> Int -> PrimIO ()
 
 export
@@ -140,7 +170,9 @@ setInt : HasIO io => Buffer -> (loc : Int) -> (val : Int) -> io ()
 setInt buf loc val
     = primIO (prim__setInt buf loc val)
 
-%foreign "scheme:blodwen-buffer-getint"
+%foreign
+  "scheme:blodwen-buffer-getint"
+  "ML:Rts.C.Lib_libidris2_support.idris2_getBufferInt"
 prim__getInt : Buffer -> Int -> PrimIO Int
 
 export
@@ -148,7 +180,9 @@ getInt : HasIO io => Buffer -> (loc : Int) -> io Int
 getInt buf loc
     = primIO (prim__getInt buf loc)
 
-%foreign "scheme:blodwen-buffer-setdouble"
+%foreign
+  "scheme:blodwen-buffer-setdouble"
+  "ML:Rts.C.Lib_libidris2_support.idris2_setBufferDouble"
 prim__setDouble : Buffer -> Int -> Double -> PrimIO ()
 
 export
@@ -156,7 +190,9 @@ setDouble : HasIO io => Buffer -> (loc : Int) -> (val : Double) -> io ()
 setDouble buf loc val
     = primIO (prim__setDouble buf loc val)
 
-%foreign "scheme:blodwen-buffer-getdouble"
+%foreign
+  "scheme:blodwen-buffer-getdouble"
+  "ML:Rts.C.Lib_libidris2_support.idris2_getBufferDouble"
 prim__getDouble : Buffer -> Int -> PrimIO Double
 
 export
@@ -166,10 +202,13 @@ getDouble buf loc
 
 -- Get the length of a string in bytes, rather than characters
 export
-%foreign "C:strlen,libc 6"
+%foreign
+  "C:strlen,libc 6"
 stringByteLength : String -> Int
 
-%foreign "scheme:blodwen-buffer-setstring"
+%foreign
+  "scheme:blodwen-buffer-setstring"
+  "ML:Rts.C.Lib_libidris2_support.idris2_setBufferString"
 prim__setString : Buffer -> Int -> String -> PrimIO ()
 
 export
@@ -177,7 +216,9 @@ setString : HasIO io => Buffer -> (loc : Int) -> (val : String) -> io ()
 setString buf loc val
     = primIO (prim__setString buf loc val)
 
-%foreign "scheme:blodwen-buffer-getstring"
+%foreign
+  "scheme:blodwen-buffer-getstring"
+  "ML:Rts.C.Lib_libidris2_support.idris2_getBufferString"
 prim__getString : Buffer -> Int -> Int -> PrimIO String
 
 export
@@ -200,7 +241,9 @@ bufferData buf
              unpackTo (val :: acc) (loc - 1)
 
 
-%foreign "scheme:blodwen-buffer-copydata"
+%foreign
+  "scheme:blodwen-buffer-copydata"
+  "ML:Rts.C.Lib_libidris2_support.idris2_copyBuffer"
 prim__copyData : Buffer -> Int -> Int -> Buffer -> Int -> PrimIO ()
 
 export
@@ -209,9 +252,11 @@ copyData : HasIO io => (src : Buffer) -> (start, len : Int) ->
 copyData src start len dest loc
     = primIO (prim__copyData src start len dest loc)
 
-%foreign "C:idris2_readBufferData,libidris2_support"
+%foreign
+  "C:idris2_readBufferData,libidris2_support"
 prim__readBufferData : FilePtr -> Buffer -> Int -> Int -> PrimIO Int
-%foreign "C:idris2_writeBufferData,libidris2_support"
+%foreign
+  "C:idris2_writeBufferData,libidris2_support"
 prim__writeBufferData : FilePtr -> Buffer -> Int -> Int -> PrimIO Int
 
 export
