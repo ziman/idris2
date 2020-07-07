@@ -82,19 +82,9 @@ CAMLprim value idris_nil(value unit)
   CAMLreturn (Val_int(0));
 }
 
-CAMLprim value idris_cons(value x, value xs)
+CAMLprim value ml_idris2_getStr(value unit)
 {
-  CAMLparam2 (x, xs);
-  CAMLlocal1 (xxs);
-  xxs = caml_alloc (2, 1);
-  Store_field (xxs, 0, x);
-  Store_field (xxs, 1, xs);
-  CAMLreturn (xxs);
-}
-
-CAMLprim value ml_idris2_getStr()
-{
-	CAMLparam0();
+	CAMLparam1(unit);
 	value result = caml_copy_string(idris2_getStr());
 	CAMLreturn((value) result);
 }
@@ -148,16 +138,16 @@ CAMLprim value ml_idris2_fileError(value file) {
   CAMLreturn(Val_int(result));
 }
 
-CAMLprim value ml_idris2_fileErrno()
+CAMLprim value ml_idris2_fileErrno(value unit)
 {
-	CAMLparam0();
+	CAMLparam1(unit);
 	const int result = idris2_fileErrno();
 	CAMLreturn(Val_int(result));
 }
 
 CAMLprim value ml_idris2_removeFile(value name) {
   CAMLparam1(name);
-  const int result = idris2_removeFile((const char*)name);
+  const int result = idris2_removeFile(String_val(name));
   CAMLreturn(Val_int(result));
 }
 
@@ -175,66 +165,66 @@ CAMLprim value ml_idris2_fpoll(value file) {
 
 CAMLprim value ml_idris2_readLine(value file) {
   CAMLparam1(file);
-  char * result = idris2_readLine((FILE *) file);
-  CAMLreturn((value) result);
+  const char * result = idris2_readLine((FILE *) file);
+  CAMLreturn(caml_copy_string(result));
 }
 
 CAMLprim value ml_idris2_readChars(value num, value file) {
   CAMLparam2(num, file);
-  char * result = idris2_readChars(Int_val(num), (FILE *) file);
-  CAMLreturn((value) result);
+  const char * result = idris2_readChars(Int_val(num), (FILE *) file);
+  CAMLreturn(caml_copy_string(result));
 }
 
 CAMLprim value ml_idris2_writeLine(value file, value str) {
   CAMLparam2(file, str);
-  const int result = idris2_writeLine((FILE *) file, (char *)str);
-  CAMLreturn((value) result);
+  const int result = idris2_writeLine((FILE *) file, String_val(str));
+  CAMLreturn(Val_int(result));
 }
 
 CAMLprim value ml_idris2_eof(value file) {
   CAMLparam1(file);
   const int result = idris2_eof((FILE *)file);
-  CAMLreturn((value) result);
+  CAMLreturn(Val_int(result));
 }
 
 CAMLprim value ml_idris2_fileAccessTime(value file) {
   CAMLparam1(file);
   const int result = idris2_fileAccessTime((FILE *)file);
-  CAMLreturn((value) result);
+  CAMLreturn(Val_int(result));
 }
 
 CAMLprim value ml_idris2_fileModifiedTime(value file) {
   CAMLparam1(file);
   const int result = idris2_fileModifiedTime((FILE *)file);
-  CAMLreturn((value) result);
+  CAMLreturn(Val_int(result));
 }
 
 CAMLprim value ml_idris2_fileStatusTime(value file) {
   CAMLparam1(file);
   const int result = idris2_fileStatusTime((FILE *)file);
-  CAMLreturn((value) result);
+  CAMLreturn(Val_int(result));
 }
 
-CAMLprim value ml_idris2_stdin() {
-  CAMLparam0();
+CAMLprim value ml_idris2_stdin(value unit) {
+  CAMLparam1(unit);
   FILE* result = idris2_stdin();
   CAMLreturn((value) result);
 }
 
-CAMLprim value ml_idris2_stdout() {
-  CAMLparam0();
+CAMLprim value ml_idris2_stdout(value unit) {
+  CAMLparam1(unit);
   FILE* result = idris2_stdout();
   CAMLreturn((value) result);
 }
 
-CAMLprim value ml_idris2_stderr() {
-  CAMLparam0();
+CAMLprim value ml_idris2_stderr(value unit) {
+  CAMLparam1(unit);
   FILE* result = idris2_stderr();
   CAMLreturn((value) result);
 }
 
-CAMLprim value ml_idris2_currentDirectory() {
-  CAMLparam0();
+CAMLprim value ml_idris2_currentDirectory(value unit) {
+  CAMLparam1(unit);
   value result = caml_copy_string(idris2_currentDirectory());
   CAMLreturn(result);
 }
@@ -313,7 +303,7 @@ CAMLprim value ml_fdopen(value fd, value mode) {
 
 CAMLprim value ml_chmod(value path, value mode) {
   CAMLparam2(path, mode);
-  const int result = chmod((const char *)path, Int_val(mode));
+  const int result = chmod(String_val(path), Int_val(mode));
   CAMLreturn(Val_int(result));
 }
 
@@ -323,8 +313,8 @@ CAMLprim value ml_putchar(value c) {
   CAMLreturn(Val_int(result));
 }
 
-CAMLprim value ml_getchar() {
-  CAMLparam0();
+CAMLprim value ml_getchar(value unit) {
+  CAMLparam1(unit);
   const int result = getchar();
   CAMLreturn(Val_int(result));
 }
