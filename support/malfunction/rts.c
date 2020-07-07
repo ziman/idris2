@@ -17,6 +17,10 @@
 
 #include "sys/stat.h"
 
+
+/* FILE* as custom caml val */
+
+
 CAMLprim value c_hello(value i) {
 	CAMLparam0();
 	const char * const msg = "hello from C!";
@@ -91,7 +95,7 @@ CAMLprim value idris_cons(value x, value xs)
 CAMLprim value ml_idris2_getStr()
 {
 	CAMLparam0();
-	value result = caml_copy_string(idris2_getStr()); 
+	value result = caml_copy_string(idris2_getStr());
 	CAMLreturn((value) result);
 }
 
@@ -253,9 +257,9 @@ CAMLprim value ml_idris2_openDir(value dir) {
   CAMLreturn((value) result);
 }
 
-CAMLprim value ml_idris2_closeDir(value dir) {
-  CAMLparam1(dir);
-  idris2_closeDir(String_val(dir));
+CAMLprim value ml_idris2_closeDir(value dirInfo) {
+  CAMLparam1(dirInfo);
+  idris2_closeDir((void *)dirInfo);
   CAMLreturn(Val_int(0));
 }
 
@@ -265,9 +269,10 @@ CAMLprim value ml_idris2_removeDir(value dir) {
   CAMLreturn(Val_int(result));
 }
 
-CAMLprim value ml_idris2_nextDirEntry(value dir) {
-  CAMLparam1(dir);
-  const value result = caml_copy_string(idris2_nextDirEntry((void *)dir));
+CAMLprim value ml_idris2_nextDirEntry(value dirInfo) {
+  CAMLparam1(dirInfo);
+  CAMLlocal1(result);
+  result = caml_copy_string(idris2_nextDirEntry((void *)dirInfo));
   CAMLreturn(result);
 }
 
@@ -425,8 +430,8 @@ CAMLprim value ml_idris2_getBufferString(value buffer, value loc, value len) {
 
 CAMLprim value ml_idrnet_malloc(value size) {
   CAMLparam1(size);
-  value result = Val_int(0);
-  CAMLreturn(result);
+  void * result = idrnet_malloc(Val_int(size));
+  CAMLreturn((value) result);
 }
 
 CAMLprim value ml_idrnet_free(value buffer) {
