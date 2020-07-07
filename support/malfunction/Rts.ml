@@ -220,9 +220,6 @@ module C = struct
         external idris2_stdout : unit -> 'file pointer = "ml_idris2_stdout"
         external idris2_stderr : unit -> 'file pointer = "ml_idris2_stderr"
 
-        (* TODO: wat? *)
-        external fgetc : 'file pointer -> int = "ml_fgetc"
-
         (* idris_directory.h *)
         external idris2_currentDirectory : unit -> string = "ml_idris2_currentDirectory"
         external idris2_changeDir : string -> int = "ml_idris2_changeDir"
@@ -297,9 +294,6 @@ module C = struct
         external idrnet_free_recvfrom_struct : 'result pointer -> unit = "ml_idrnet_free_recvfrom_struct"
 
         external idrnet_geteagain : unit -> int = "ml_idrnet_geteagain"
-
-        (* weirdness, this should be libc *)
-        external listen : int -> int -> int = "ml_idris2_listen"
     end
 
     module Lib_libc6 = struct
@@ -314,5 +308,8 @@ module C = struct
         external putchar : char -> int = "ml_putchar"
         external getchar : unit -> int = "ml_getchar"
         external strlen : string -> int = "ml_strlen"
+
+        external fgetc : 'file pointer -> int = "ml_fgetc"
+        external listen : int -> int -> int = "ml_idris2_listen"
     end
 end
