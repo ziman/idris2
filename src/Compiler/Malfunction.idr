@@ -517,10 +517,10 @@ generateMlf c tm outfile = do
     | Left err => throw (FileErr outfile err)
   pure ()
 
-compileExpr : Ref Ctxt Defs -> (execDir : String) ->
+compileExpr : Ref Ctxt Defs -> (tmpDir : String) -> (outputDir : String) ->
               ClosedTerm -> (outfile : String) -> Core (Maybe String)
-compileExpr c execDir tm outfile = do
-  let bld = execDir </> "mlf-" ++ outfile
+compileExpr c tmpDir outputDir tm outfile = do
+  let bld = tmpDir </> "mlf-" ++ outfile
   coreLift $ mkdirAll bld
 
   let copy = \fn => with Core.Core.(>>=) do
@@ -561,12 +561,12 @@ compileExpr c execDir tm outfile = do
         ]
   ok <- coreLift $ system cmd
   if ok == 0
-    then pure (Just (execDir </> outfile))
+    then pure (Just (outputDir </> outfile))
     else pure Nothing
 
-executeExpr : Ref Ctxt Defs -> (execDir : String) -> ClosedTerm -> Core ()
-executeExpr c execDir tm
-    = do outn <- compileExpr c execDir tm "_tmp_mlf"
+executeExpr : Ref Ctxt Defs -> (tmpDir : String) -> ClosedTerm -> Core ()
+executeExpr c tmpDir tm
+    = do outn <- compileExpr c tmpDir tmpDir tm "_tmp_mlf"
          case outn of
               -- TODO: on windows, should add exe extension
               Just outn => map (const ()) $ coreLift $ system outn
