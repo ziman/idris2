@@ -5,6 +5,11 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+typedef struct {
+    int size;
+    uint8_t data[0];
+} Buffer;
+
 void* idris2_newBuffer(int bytes);
 void idris2_freeBuffer(void* buf);
 
@@ -20,10 +25,11 @@ void idris2_copyBuffer(void* from, int start, int len,
 
 // Reading and writing the raw data, to the pointer in the buffer
 int idris2_readBufferData(FILE* h, char* buffer, int loc, int max);
+int idris2_readBufferDataInto(FILE* h, Buffer* buffer, int loc, int max);
 int idris2_writeBufferData(FILE* h, char* buffer, int loc, int len);
 
 int idris2_getBufferByte(void* buffer, int loc);
-int idris2_getBufferInt(void* buffer, int loc);
+int64_t idris2_getBufferInt(void* buffer, int loc);
 double idris2_getBufferDouble(void* buffer, int loc);
 char* idris2_getBufferString(void* buffer, int loc, int len);
 

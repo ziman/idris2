@@ -249,7 +249,7 @@ module C = struct
         external idris2_getBufferByte : 'buffer pointer -> int -> int = "ml_idris2_getBufferByte"
         external idris2_getBufferInt : 'buffer pointer -> int -> int = "ml_idris2_getBufferInt"
         external idris2_getBufferDouble : 'buffer pointer -> int -> float = "ml_idris2_getBufferDouble"
-        external idris2_getBufferString : 'buffer pointer -> int -> string = "ml_idris2_getBufferString"
+        external idris2_getBufferString : 'buffer pointer -> int -> int -> string = "ml_idris2_getBufferString"
 
         (* idris_net *)
         (* FIXME: this should work with buffers *)

@@ -392,7 +392,7 @@ CAMLprim value ml_idris2_copyBuffer(value from, value start, value len, value to
 
 CAMLprim value ml_idris2_readBufferData(value file, value buffer, value loc, value max) {
   CAMLparam4(file, buffer, loc, max);
-  const int result = idris2_readBufferData((FILE *)file, (char *)buffer, Int_val(loc), Int_val(max));
+  const int result = idris2_readBufferDataInto((FILE *)file, (Buffer *)buffer, Int_val(loc), Int_val(max));
   CAMLreturn(Val_int(result));
 }
 

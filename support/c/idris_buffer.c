@@ -2,11 +2,6 @@
 #include <sys/stat.h>
 #include <string.h>
 
-typedef struct {
-    int size;
-    uint8_t data[0];
-} Buffer;
-
 void* idris2_newBuffer(int bytes) {
     size_t size = sizeof(Buffer) + bytes*sizeof(uint8_t);
 
@@ -86,13 +81,14 @@ int idris2_getBufferByte(void* buffer, int loc) {
     }
 }
 
-int idris2_getBufferInt(void* buffer, int loc) {
+int64_t idris2_getBufferInt(void* buffer, int loc) {
     Buffer* b = buffer;
-    if (loc >= 0 && loc+3 < b->size) {
-        return b->data[loc] +
-               (b->data[loc+1] << 8) +
-               (b->data[loc+2] << 16) +
-               (b->data[loc+3] << 24);
+    if (loc >= 0 && loc+7 < b->size) {
+        int64_t result = 0;
+        for (size_t i=0; i<8; i++) {
+            result |= b->data[loc + i] << (8 * i);
+        }
+        return result;
     } else {
         return 0;
     }
@@ -122,6 +118,10 @@ char* idris2_getBufferString(void* buffer, int loc, int len) {
     strncpy(rs, s, len);
     rs[len] = '\0';
     return rs;
+}
+
+int idris2_readBufferDataInto(FILE* h, Buffer* buffer, int loc, int max) {
+    return fread(buffer->data + loc, sizeof(uint8_t), (size_t)max, h);
 }
 
 int idris2_readBufferData(FILE* h, char* buffer, int loc, int max) {
