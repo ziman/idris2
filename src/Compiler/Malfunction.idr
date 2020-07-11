@@ -190,6 +190,9 @@ mlfOp (Cast IntType CharType) [x] = x
 mlfOp (Cast IntegerType StringType) [x] = mlfLibCall "Z.to_string" [x]
 mlfOp (Cast IntType StringType) [x] = mlfLibCall "Stdlib.string_of_int" [x]
 
+mlfOp (Cast StringType IntegerType) [x] = mlfLibCall "Z.of_string" [x]
+mlfOp (Cast StringType IntType) [x] = mlfLibCall "Stdlib.int_of_string" [x]
+
 mlfOp StrLength [x] = mlfLibCall "Rts.String.length" [x]
 mlfOp StrHead [x] = mlfLibCall "Rts.String.head" [x]
 mlfOp StrTail [x] = mlfLibCall "Rts.String.tail" [x]
