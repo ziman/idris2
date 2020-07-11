@@ -466,23 +466,32 @@ parameters (ldefs : SortedSet Name)
       args : List Name
       args = [UN $ "arg" ++ show i | i <- [0..cast {to = Int} arity-1]]
 
-  mlfBody (MkNmForeign ccs fargs cty) =
-    mlfLam (map fst args) $
+  mlfBody (MkNmForeign ccs args cty) =
+    mlfLam (map fst lamArgs) $
       case ccLibFun ccs of
-        Just fn => mlfLibCall fn (map mlfVar fgnArgs)
+        Just fn => mlfLibCall fn (map mlfVar mlArgs)
         Nothing =>
-          mlfError $ "unimplemented foreign: " ++ show (MkNmForeign ccs fargs cty)
+          mlfError $ "unimplemented foreign: " ++ show (MkNmForeign ccs args cty)
     where
       mkArgs : Int -> List CFType -> List (Name, Bool)
       mkArgs i [] = []
       mkArgs i (CFWorld :: cs) = (MN "farg" i, False) :: mkArgs i cs
       mkArgs i (c :: cs) = (MN "farg" i, True) :: mkArgs (i + 1) cs
 
-      args : List (Name, Bool)
-      args = mkArgs 0 fargs
+      -- arguments of the Malfunction lambda
+      lamArgs : List (Name, Bool)
+      lamArgs = mkArgs 0 args
 
-      fgnArgs : List Name
-      fgnArgs = map fst $ filter snd args
+      -- arguments of the foreign ML function
+      mlArgs : List Name
+      mlArgs = map fst $ case lamArgs of
+        -- if we have only one argument, we have to keep it
+        -- even if it's %World
+        -- to avoid turning the function into a non-function
+        [_] => lamArgs
+
+        -- otherwise, attempt to remove %World
+        _ => filter snd lamArgs
 
   mlfBody (MkNmError err) =
     mlfTm err

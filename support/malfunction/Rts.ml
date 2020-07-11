@@ -30,7 +30,7 @@ let not_implemented msg = failwith ("not implemented yet: " ^ msg)
 
 module Debug = struct
     (* %foreign "ML:Rts.Debug.inspect"
-     * prim__inspect : (x : a) -> (1 w : %World) -> IORes ()
+     * prim__inspect : {a : Type} -> (x : a) -> (1 w : %World) -> IORes ()
      *
      * inspect : a -> IO ()
      * inspect x = primIO (prim__inspect x)
@@ -43,13 +43,13 @@ module IORef = struct
 end
 
 module System = struct
-    let get_args : string idris_list =
+    let get_args (_ : world) : string idris_list =
         IdrisList.of_list (Array.to_list Sys.argv)
 
     let fork_thread (sub : world -> unit) : Thread.t =
         Thread.create sub World
 
-    let os_name : string =
+    let os_name (_ : world) : string =
         match Sys.os_type with
         | "Unix" -> "unix"
         | "Win32" -> "windows"
@@ -193,7 +193,7 @@ module C = struct
         external idris2_putStr : string -> unit = "ml_idris2_putStr"
         external idris2_isNull : 'a pointer -> bool = "ml_idris2_isNull"
         external idris2_getString : string pointer -> string = "ml_idris2_getString"
-        external idris2_getStr : unit -> string = "ml_idris2_getString"
+        external idris2_getStr : world -> string = "ml_idris2_getString"
         external idris2_getEnvPair : int -> string pointer = "ml_idris2_getEnvPair"
 
         (* idris_file.h *)
@@ -201,7 +201,7 @@ module C = struct
         external idris2_closeFile : filep -> unit = "ml_idris2_closeFile"
         external idris2_fileError : filep -> int = "ml_idris2_fileError"
 
-        external idris2_fileErrno : unit -> int = "ml_idris2_fileErrno"
+        external idris2_fileErrno : world -> int = "ml_idris2_fileErrno"
 
         external idris2_removeFile : string -> int = "ml_idris2_removeFile"
         external idris2_fileSize : filep -> int = "ml_idris2_fileSize"
@@ -218,12 +218,12 @@ module C = struct
         external idris2_fileModifiedTime : filep -> int = "ml_idris2_fileModifiedTime"
         external idris2_fileStatusTime : filep -> int = "ml_idris2_fileStatusTime"
 
-        external idris2_stdin : unit -> filep = "ml_idris2_stdin"
-        external idris2_stdout : unit -> filep = "ml_idris2_stdout"
-        external idris2_stderr : unit -> filep = "ml_idris2_stderr"
+        external idris2_stdin : world -> filep = "ml_idris2_stdin"
+        external idris2_stdout : world -> filep = "ml_idris2_stdout"
+        external idris2_stderr : world -> filep = "ml_idris2_stderr"
 
         (* idris_directory.h *)
-        external idris2_currentDirectory : unit -> string = "ml_idris2_currentDirectory"
+        external idris2_currentDirectory : world -> string = "ml_idris2_currentDirectory"
         external idris2_changeDir : string -> int = "ml_idris2_changeDir"
         external idris2_createDir : string -> int = "ml_idris2_createDir"
         external idris2_openDir : string -> 'a pointer = "ml_idris2_openDir"
@@ -258,7 +258,7 @@ module C = struct
         external idrnet_peek : 'buffer pointer -> int -> int = "ml_idrnet_peek"
         external idrnet_poke : 'buffer pointer -> int -> int = "ml_idrnet_poke"
 
-        external idrnet_errno : unit -> int = "ml_idrnet_errno"
+        external idrnet_errno : world -> int = "ml_idrnet_errno"
 
         external idrnet_socket : int -> int -> int -> int = "ml_idrnet_socket"
 
@@ -270,7 +270,7 @@ module C = struct
         external idrnet_sockaddr_family : 'sockaddr pointer -> int = "ml_idrnet_sockaddr_family"
         external idrnet_sockaddr_ipv4 : 'sockaddr pointer -> string = "ml_idrnet_sockaddr_ipv4"
         external idrnet_sockaddr_ipv4_port : 'sockaddr pointer -> int = "ml_idrnet_sockaddr_ipv4_port"
-        external idrnet_create_sockaddr : unit -> 'sockaddr pointer = "ml_idrnet_create_sockaddr"
+        external idrnet_create_sockaddr : world -> 'sockaddr pointer = "ml_idrnet_create_sockaddr"
 
         external idrnet_accept : int -> 'sockaddr pointer -> int = "ml_idrnet_accept"
 
@@ -295,7 +295,7 @@ module C = struct
         external idrnet_get_recvfrom_sockaddr : 'result pointer -> 'buffer pointer = "ml_idrnet_get_recvfrom_sockaddr"
         external idrnet_free_recvfrom_struct : 'result pointer -> unit = "ml_idrnet_free_recvfrom_struct"
 
-        external idrnet_geteagain : unit -> int = "ml_idrnet_geteagain"
+        external idrnet_geteagain : world -> int = "ml_idrnet_geteagain"
     end
 
     module Lib_libc6 = struct
@@ -308,7 +308,7 @@ module C = struct
         external chmod : string -> int -> int = "ml_chmod"
 
         external putchar : char -> int = "ml_putchar"
-        external getchar : unit -> int = "ml_getchar"
+        external getchar : world -> int = "ml_getchar"
         external strlen : string -> int = "ml_strlen"
 
         external fgetc : filep -> int = "ml_fgetc"
