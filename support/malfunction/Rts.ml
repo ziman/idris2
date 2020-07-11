@@ -218,9 +218,12 @@ module C = struct
         external idris2_fileModifiedTime : filep -> int = "ml_idris2_fileModifiedTime"
         external idris2_fileStatusTime : filep -> int = "ml_idris2_fileStatusTime"
 
-        external idris2_stdin : world -> filep = "ml_idris2_stdin"
-        external idris2_stdout : world -> filep = "ml_idris2_stdout"
-        external idris2_stderr : world -> filep = "ml_idris2_stderr"
+        external idris2_stdin_ : unit -> filep = "ml_idris2_stdin"
+        let idris2_stdin : filep = idris2_stdin_ ()
+        external idris2_stdout_ : unit -> filep = "ml_idris2_stdout"
+        let idris2_stdout : filep = idris2_stdout_ ()
+        external idris2_stderr_ : unit -> filep = "ml_idris2_stderr"
+        let idris2_stderr : filep = idris2_stderr_ ()
 
         (* idris_directory.h *)
         external idris2_currentDirectory : world -> string = "ml_idris2_currentDirectory"
