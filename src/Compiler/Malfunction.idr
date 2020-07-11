@@ -475,7 +475,7 @@ parameters (ldefs : SortedSet Name)
     where
       mkArgs : Int -> List CFType -> List (Name, Bool)
       mkArgs i [] = []
-      mkArgs i (CFWorld :: cs) = (MN "farg" i, False) :: mkArgs i cs
+      mkArgs i (CFWorld :: cs) = (MN "farg" i, False) :: mkArgs (i + 1) cs
       mkArgs i (c :: cs) = (MN "farg" i, True) :: mkArgs (i + 1) cs
 
       -- arguments of the Malfunction lambda

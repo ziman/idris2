@@ -193,7 +193,7 @@ module C = struct
         external idris2_putStr : string -> unit = "ml_idris2_putStr"
         external idris2_isNull : 'a pointer -> bool = "ml_idris2_isNull"
         external idris2_getString : string pointer -> string = "ml_idris2_getString"
-        external idris2_getStr : world -> string = "ml_idris2_getString"
+        external idris2_getStr : world -> string = "ml_idris2_getStr"
         external idris2_getEnvPair : int -> string pointer = "ml_idris2_getEnvPair"
 
         (* idris_file.h *)
