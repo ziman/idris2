@@ -355,8 +355,6 @@ CAMLprim value ml_string_tail(value src)
 	dst = caml_alloc_string(src_length - cp_width);
 	memcpy(Bytes_val(dst), srcp + cp_width, src_length - cp_width);
 	
-	printf("ml_string_tail(%s) -> %s\n", Bytes_val(src), Bytes_val(dst));
-
 	CAMLreturn(dst);
 }
 
