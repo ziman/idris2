@@ -66,17 +66,7 @@ module String = struct
     external tail : string -> string = "ml_string_tail";
     external get : string -> int -> char = "ml_string_get";
     external unpack : string -> char idris_list = "ml_string_unpack";
-
-    let pack (cs : char idris_list) : bytes =
-        let total_length = IdrisList.foldl (fun l c -> l + LowLevel.utf8_width c) 0 cs in
-        let result = Bytes.create total_length in
-        let rec fill (ofs : int) = function
-            | IdrisList.Nil -> result
-            | IdrisList.UNUSED _ -> failwith "UNUSED in idris list"
-            | IdrisList.Cons (c, xs) ->
-                LowLevel.utf8_write c ofs result;
-                fill (ofs + LowLevel.utf8_width c) xs
-          in fill 0 cs
+    external pack : char idris_list -> string = "ml_string_pack";
 end
 
 module Bytes = struct

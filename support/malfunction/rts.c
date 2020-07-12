@@ -213,7 +213,7 @@ CAMLprim value ml_string_reverse(value src)
 	CAMLparam1(src);
 	CAMLlocal1(dst);
 
-	size_t src_length = caml_string_length(src);
+	const size_t src_length = caml_string_length(src);
 	dst = caml_alloc_string(src_length);
 
 	const uint8_t * src_start = Bytes_val(src);
@@ -227,7 +227,7 @@ CAMLprim value ml_string_reverse(value src)
 	size_t bytes_remaining = src_length;
 	while (srcp < src_end && dstp > dst_start) {
 		uint32_t cp;
-		size_t cp_width = utf8_read(srcp, bytes_remaining, &cp);
+		const size_t cp_width = utf8_read(srcp, bytes_remaining, &cp);
 		if (cp_width == 0) {
 			failwith("ml_string_reverse: malformed utf8 input");
 		}
@@ -248,8 +248,6 @@ CAMLprim value ml_string_reverse(value src)
 
 const uint8_t * utf8_skip_chars(const uint8_t * buf, size_t buf_length, size_t n_chars)
 {
-	uint32_t cp;
-
 	while (n_chars > 0)
 	{
 		if (buf_length == 0)
@@ -257,7 +255,8 @@ const uint8_t * utf8_skip_chars(const uint8_t * buf, size_t buf_length, size_t n
 			failwith("utf8_skip_chars: out of bounds");
 		}
 
-		size_t cp_width = utf8_read(buf, buf_length, &cp);
+		uint32_t cp;
+		const size_t cp_width = utf8_read(buf, buf_length, &cp);
 		if (cp_width == 0) {
 			failwith("utf8_skip_chars: out of bounds or malformed string");
 		}
@@ -275,14 +274,14 @@ CAMLprim value ml_string_substring(value n_skip, value n_chars, value src)
 	CAMLparam3(n_skip, n_chars, src);
 	CAMLlocal1(dst);
 
-	uint8_t * src = Bytes_val(src);
-	uint8_t * src_end = src + caml_string_length(src);
+	const uint8_t * src = Bytes_val(src);
+	const uint8_t * src_end = src + caml_string_length(src);
 
-	uint8_t * start = utf8_skip_chars(src, src_end - src, Int_val(n_skip));
-	uint8_t * end   = utf8_skip_chars(start, src_end - start, Int_val(n_chars));
+	const uint8_t * start = utf8_skip_chars(src, src_end - src, Int_val(n_skip));
+	const uint8_t * end   = utf8_skip_chars(start, src_end - start, Int_val(n_chars));
 
 	dst = caml_alloc_string(end - start);
-	memcpy(dst, start, end-start);
+	memcpy(Bytes_val(dst), start, end-start);
 
 	CAMLreturn(dst);
 }
@@ -292,8 +291,8 @@ CAMLprim value ml_string_cons(value cp, value src)
 	CAMLparam2(cp, src);
 	CAMLlocal1(dst);
 
-	size_t src_length = caml_string_length(src);
-	size_t cp_width = utf8_width(cp);
+	const size_t src_length = caml_string_length(src);
+	const size_t cp_width = utf8_width(cp);
 
 	dst = caml_alloc_string(cp_width + src_length);
 	uint8_t * dstp = Bytes_val(dst);
@@ -334,7 +333,7 @@ CAMLprim value ml_string_head(value src)
 	CAMLparam1(src);
 
 	uint32_t cp;
-	size_t cp_width = utf8_read(Bytes_val(src), caml_string_length(src));
+	const size_t cp_width = utf8_read(Bytes_val(src), caml_string_length(src));
 	if (cp_width == 0) {
 		failwith("ml_string_head: empty or malformed string");
 	}
@@ -348,10 +347,10 @@ CAMLprim value ml_string_tail(value src)
 	CAMLlocal1(dst);
 
 	const uint8_t * srcp = Bytes_val(src);
-	size_t src_length = caml_string_length(src);
+	const size_t src_length = caml_string_length(src);
 
 	uint32_t cp;
-	size_t cp_width = utf8_read(srcp, src_length);
+	const size_t cp_width = utf8_read(srcp, src_length);
 	if (cp_width == 0) {
 		failwith("ml_string_tail: empty or malformed string");
 	}
@@ -372,7 +371,7 @@ CAMLprim value ml_string_get(value src, value i)
 	const uint8_t * p = utf8_skip_chars(src_start, src_end - src_start, Int_val(i));
 	
 	uint32_t cp;
-	size_t cp_width = utf8_read(p, src_end - p, &cp);
+	const size_t cp_width = utf8_read(p, src_end - p, &cp);
 	if (cp_width == 0)
 	{
 		failwith("ml_string_get: out of bounds or malformed string");
@@ -394,7 +393,7 @@ CAMLprim value ml_string_unpack(value src)
 	while (bytes_remaining > 0)
 	{
 		uint32_t cp;
-		size_t cp_width = utf8_read(srcp, bytes_remaining, &cp);
+		const size_t cp_width = utf8_read(srcp, bytes_remaining, &cp);
 		if (cp_width == 0)
 		{
 			failwith("ml_string_unpack: malformed string");
@@ -408,6 +407,44 @@ CAMLprim value ml_string_unpack(value src)
 	}
 
 	CAMLreturn(fst);
+}
+
+CAMLprim value ml_string_pack(value cps)
+{
+	CAMLparam1(cps);
+	CAMLlocal1(p, dst);
+
+	// first pass: get total number of bytes
+	size_t total_width = 0;
+	for (p = cps; Is_block(p); p = Field(p, 1))
+	{
+		const uint32_t cp = Int_val(Field(p, 0));
+		const size_t cp_width = utf8_width(cp);
+		if (cp_width == 0)
+		{
+			failwith("ml_string_pack: code point out of range");
+		}
+
+		total_width += cp_width;
+	}
+
+	// second pass: encode the characters
+	dst = caml_alloc_string(total_width);
+	uint8_t * dstp = Bytes_val(dst);
+	for (p = cps; Is_block(p); p = Field(p, 1))
+	{
+		const uint32_t cp = Int_val(Field(p, 0));
+		const size_t cp_width = utf8_width(cp);
+		if (cp_width == 0)
+		{
+			failwith("ml_string_pack: impossible: code point out of range despite previous check");
+		}
+
+		utf8_write(dstp, cp_width, cp);
+		dstp += cp_width;
+	}
+
+	CAMLreturn(dst);
 }
 
 CAMLprim value inspect(value ty, value x)
