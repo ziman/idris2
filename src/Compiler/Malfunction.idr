@@ -558,8 +558,6 @@ compileExpr c tmpDir outputDir tm outfile = do
   coreLift $ system $ unwords
     ["cp", "~/.idris2/idris2-0.2.0/support/c/*", bld]
 
-  copy "LowLevel.mlf"
-  copy "LowLevel.mli"
   copy "Rts.ml"
   copy "rts.c"
   generateMlf c tm (bld </> "Main.mlf")
@@ -571,9 +569,6 @@ compileExpr c tmpDir outputDir tm outfile = do
         , "&& { rm -f Rts.mli *.cmi *.cmx *.o || true; }"
         -- C
         , "&& cc -O2 " ++ flags ++ " -c rts.c -I $(ocamlc -where)"
-        -- LowLevel
-        , "&& ocamlfind opt -I +threads " ++ flags ++ " -c LowLevel.mli"
-        , "&& malfunction cmx LowLevel.mlf"
         -- Rts
         , "&& ocamlfind opt -I +threads " ++ flags ++ " -i Rts.ml > Rts.mli"
         , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.mli"
@@ -582,7 +577,7 @@ compileExpr c tmpDir outputDir tm outfile = do
         , "&& malfunction cmx Main.mlf"
         -- link it all together
         , "&& ocamlfind opt -thread -package zarith -linkpkg -nodynlink "
-            ++ flags ++ " rts.o libidris2_support.a LowLevel.cmx Rts.cmx Main.cmx -o ../" ++ outfile
+            ++ flags ++ " rts.o libidris2_support.a Rts.cmx Main.cmx -o ../" ++ outfile
         , ")"
         ]
   ok <- coreLift $ system cmd
