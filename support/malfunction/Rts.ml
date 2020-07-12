@@ -58,15 +58,15 @@ module System = struct
 end
 
 module String = struct
-    external reverse : string -> string = "ml_string_reverse";
-    external substring : int -> int -> string -> string = "ml_string_substring";
-    external cons : char -> string -> string = "ml_string_cons";
-    external length : string -> int = "ml_string_length";
-    external head : string -> char = "ml_string_head";
-    external tail : string -> string = "ml_string_tail";
-    external get : string -> int -> char = "ml_string_get";
-    external unpack : string -> char idris_list = "ml_string_unpack";
-    external pack : char idris_list -> string = "ml_string_pack";
+    external reverse : string -> string = "ml_string_reverse"
+    external substring : int -> int -> string -> string = "ml_string_substring"
+    external cons : char -> string -> string = "ml_string_cons"
+    external length : string -> int = "ml_string_length"
+    external head : string -> char = "ml_string_head"
+    external tail : string -> string = "ml_string_tail"
+    external get : string -> int -> char = "ml_string_get"
+    external unpack : string -> char idris_list = "ml_string_unpack"
+    external pack : char idris_list -> string = "ml_string_pack"
 end
 
 module Bytes = struct
