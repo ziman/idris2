@@ -61,30 +61,9 @@ module String = struct
     external reverse : string -> string = "ml_string_reverse";
     external substring : int -> int -> string -> string = "ml_string_substring";
     external cons : char -> string -> string = "ml_string_cons";
-
-    let length (s : bytes) : int =
-        let rec go (acc : int) (ofs : int) =
-            match LowLevel.utf8_read ofs s with
-            | LowLevel.EOF -> acc
-            | LowLevel.Character (_, w) -> go (acc + 1) (ofs + w)
-            | LowLevel.Malformed -> failwith "malformed string"
-          in go 0 0
-
-    let head (s : bytes) : char =
-        match LowLevel.utf8_read 0 s with
-        | LowLevel.EOF -> failwith "String.head: empty string"
-        | LowLevel.Character (c, _) -> c
-        | LowLevel.Malformed -> failwith "malformed string"
-
-    let tail (s : bytes) : bytes =
-        match LowLevel.utf8_read 0 s with
-        | LowLevel.EOF -> failwith "String.tail: empty string"
-        | LowLevel.Character (_, w) ->
-            let nbytes = Bytes.length s - w in
-            let s' = Bytes.create nbytes in
-            Bytes.blit s w s' 0 nbytes;
-            s'
-        | LowLevel.Malformed -> failwith "malformed string"
+    external length : string -> int = "ml_string_length";
+    external head : string -> char = "ml_string_head";
+    external tail : string -> string = "ml_string_tail";
 
     let get (s : bytes) (i : int) : char =
         let rec go (j : int) (ofs : int) =

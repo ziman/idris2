@@ -177,9 +177,9 @@ static inline size_t utf8_width(uint32_t cp)
 	return 0;  // code too high
 }
 
-static inline void utf8_write(uint8_t * buf, size_t width, uint32_t cp)
+static inline void utf8_write(uint8_t * buf, size_t cp_width, uint32_t cp)
 {
-	switch (width) {
+	switch (cp_width) {
 		case 1:
 			buf[0] = cp;
 			break;
@@ -227,16 +227,16 @@ CAMLprim value ml_string_reverse(value src)
 	size_t bytes_remaining = src_length;
 	while (srcp < src_end && dstp > dst_start) {
 		uint32_t cp;
-		size_t width = utf8_read(srcp, bytes_remaining, &cp);
-		if (width == 0) {
+		size_t cp_width = utf8_read(srcp, bytes_remaining, &cp);
+		if (cp_width == 0) {
 			failwith("ml_string_reverse: malformed utf8 input");
 		}
 
-		utf8_write(dstp, width, cp);
+		utf8_write(dstp, cp_width, cp);
 
-		bytes_remaining -= width;
-		srcp += width;
-		dstp -= width;
+		bytes_remaining -= cp_width;
+		srcp += cp_width;
+		dstp -= cp_width;
 	}
 
 	if (srcp != src_end || dstp != dst_start) {
@@ -257,13 +257,13 @@ const uint8_t * utf8_skip_chars(const uint8_t * buf, size_t buf_length, size_t n
 			failwith("utf8_skip_chars: out of bounds");
 		}
 
-		size_t width = utf8_read(buf, buf_length, &cp);
-		if (width == 0) {
+		size_t cp_width = utf8_read(buf, buf_length, &cp);
+		if (cp_width == 0) {
 			failwith("utf8_skip_chars: out of bounds or malformed string");
 		}
 
-		buf += width;
-		buf_length -= width;
+		buf += cp_width;
+		buf_length -= cp_width;
 		n_chars--;
 	}
 
@@ -300,6 +300,64 @@ CAMLprim value ml_string_cons(value cp, value src)
 
 	utf8_write(dstp, cp_width, cp);
 	memcpy(dstp+cp_width, Bytes_val(src), src_length);
+
+	CAMLreturn(dst);
+}
+
+CAMLprim value ml_string_length(value src)
+{
+	CAMLparam1(src);
+
+	const uint8_t * srcp = Bytes_val(src);
+	size_t bytes_remaining = caml_string_length(src);
+
+	uint32_t cp;
+	size_t n_chars = 0;
+	while (bytes_remaining > 0)
+	{
+		size_t cp_width = utf8_read(srcp, bytes_remaining);
+		if (cp_width == 0)
+		{
+			failwith("ml_string_length: malformed string");
+		}
+
+		srcp += cp_width;
+		bytes_remaining -= cp_width;
+		n_chars += 1;
+	}
+
+	CAMLreturn(Val_int(n_chars));
+}
+
+CAMLprim value ml_string_head(value src)
+{
+	CAMLparam1(src);
+
+	uint32_t cp;
+	size_t cp_width = utf8_read(Bytes_val(src), caml_string_length(src));
+	if (cp_width == 0) {
+		failwith("ml_string_head: empty or malformed string");
+	}
+
+	CAMLreturn(Val_int(cp));
+}
+
+CAMLprim value ml_string_tail(value src)
+{
+	CAMLparam1(src);
+	CAMLlocal1(dst);
+
+	const uint8_t * srcp = Bytes_val(src);
+	size_t src_length = caml_string_length(src);
+
+	uint32_t cp;
+	size_t cp_width = utf8_read(srcp, src_length);
+	if (cp_width == 0) {
+		failwith("ml_string_tail: empty or malformed string");
+	}
+
+	dst = caml_alloc_string(src_length - cp_width);
+	memcpy(Bytes_val(dst), srcp + cp_width, src_length - cp_width);
 
 	CAMLreturn(dst);
 }
