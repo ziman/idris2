@@ -58,20 +58,7 @@ module System = struct
 end
 
 module String = struct
-    let reverse (src : bytes) : bytes =
-        let len = Bytes.length src in
-        let dst = Bytes.create len in
-        let rec go (ofs_src : int) (ofs_dst : int) =
-            match ofs_dst with
-            | 0 -> dst
-            | _ -> (match LowLevel.utf8_read ofs_src src with
-                | LowLevel.EOF -> failwith "impossible: desynchronised"
-                | LowLevel.Character (c, w) ->
-                    LowLevel.utf8_write c (ofs_dst - w) dst;
-                    go (ofs_src + w) (ofs_dst - w)
-                | LowLevel.Malformed -> failwith "malformed string"
-                )
-          in go 0 len
+    external reverse : bytes -> bytes = "ml_string_reverse";
 
     (* get the byte offset after skipping N chars from the starting byte offset *)
     (* this function stops at the end of the string without throwing an error there *)
@@ -99,7 +86,7 @@ module String = struct
             | LowLevel.Malformed -> failwith "malformed string"
           in go 0 0
 
-    let sub (ofs_chars : int) (nchars : int) (s : bytes) : bytes =
+    let substring (ofs_chars : int) (nchars : int) (s : bytes) : bytes =
         let ofs = get_end_ofs 0 ofs_chars s in
         let len = get_end_ofs ofs nchars s - ofs in
         let result = Bytes.create len in

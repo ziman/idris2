@@ -69,6 +69,180 @@ void inspect_(int indent, value x) {
 	}
 }
 
+// returns the number of bytes read
+// 0 = malformed
+static inline size_t utf8_read(const uint8_t * bytes, size_t length, uint32_t * out_cp)
+{
+	if (length < 1) {
+		return 0;
+	}
+
+	if (bytes[0] < 0x80) {
+		// one-byte representation
+		*out_cp = (uint32_t) *bytes;
+		return 1;
+	}
+
+	if (bytes[0] < 0xC0) {
+		// continuation bytes cannot appear here
+		return 0;
+	}
+
+	if (bytes[0] < 0xE0) {
+		// two-byte representation
+		if (length < 2) {
+			return 0;
+		}
+
+		if ((bytes[1] & 0xC0) != 0x80) {
+			// malformed continuation byte: must be 0b10xx_xxxx
+			return 0;
+		}
+
+		*out_cp =
+			  ((bytes[0] & 0x1F) << 6)
+			|  (bytes[1] & 0x3F)
+			;
+		return 2;
+	}
+
+	if (bytes[0] < 0xF0) {
+		// three-byte representation
+		if (length < 3) {
+			return 0;
+		}
+
+		if (
+			   (bytes[1] & 0xC0) != 0x80
+			|| (bytes[2] & 0xC0) != 0x80
+		) {
+			// malformed continuation byte: must be 0b10xx_xxxx
+			return 0;
+		}
+
+		*out_cp =
+			  ((bytes[0] & 0x0F) << 12)
+			| ((bytes[1] & 0x3F) <<  6)
+			|  (bytes[2] & 0x3F)
+			;
+		return 3
+	}
+
+	if (bytes[0] < 0xF8) {
+		// four-byte representation
+		if (length < 4) {
+			return 0;
+		}
+
+		if (
+			   (bytes[1] & 0xC0) != 0x80
+			|| (bytes[2] & 0xC0) != 0x80
+			|| (bytes[3] & 0xC0) != 0x80
+		) {
+			// malformed continuation byte: must be 0b10xx_xxxx
+			return 0;
+		}
+
+		*out_cp =
+			  ((bytes[0] & 0x07) << 18)
+			| ((bytes[1] & 0x3F) << 12)
+			| ((bytes[2] & 0x3F) <<  6)
+			|  (bytes[3] & 0x3F)
+			;
+		return 4;
+	}
+
+	return 0;
+}
+
+// zero = error
+static inline size_t utf8_width(uint32_t cp) {
+	if (cp < 0x80) {
+		return 1;
+	}
+
+	if (cp < 0x800) {
+		return 2;
+	}
+
+	if (cp < 0x10000) {
+		return 3;
+	}
+
+	if (cp < 0x110000) {
+		return 4;
+	}
+
+	return 0;  // code too high
+}
+
+static inline void utf8_write(uint8_t * buf, size_t width, uint32_t cp) {
+	switch (width) {
+		case 1:
+			buf[0] = cp;
+			break;
+
+		case 2:
+			buf[0] = ((cp >> 6) & 0x1F) | 0xC0;
+			buf[1] = ( cp       & 0x3F) | 0x80;
+			break;
+
+		case 3:
+			buf[0] = ((cp >> 12) & 0x0F) | 0xE0;
+			buf[1] = ((cp >>  6) & 0x3F) | 0x80;
+			buf[2] = ( cp        & 0x3F) | 0x80;
+			break;
+
+		case 4:
+			buf[0] = ((cp >> 18) & 0x07) | 0xF0;
+			buf[1] = ((cp >> 12) & 0x3F) | 0x80;
+			buf[2] = ((cp >>  6) & 0x3F) | 0x80;
+			buf[3] = ( cp        & 0x3F) | 0x80;
+			break;
+
+		default:
+			failwith("utf8_write: invalid code point value");
+			break;
+	}
+}
+
+CAMLprim value ml_string_reverse(value src) {
+	CAMLparam1(src);
+	CAMLlocal1(dst);
+
+	size_t src_length = caml_string_length(src);
+	dst = caml_alloc_string(src_length);
+
+	const uint8_t * src_start = Bytes_val(src);
+	const uint8_t * src_end = src_start + src_length;
+	const uint8_t * srcp = src_start;
+
+	uint8_t * dst_start = Bytes_val(dst);
+	uint8_t * dst_end = dst_start + src_length;
+	uint8_t * dstp = dst_end;
+
+	size_t bytes_remaining = src_length;
+	while (srcp < src_end && dstp > dst_start) {
+		uint32_t cp;
+		size_t width = utf8_read(srcp, bytes_remaining, &cp);
+		if (width == 0) {
+			failwith("ml_string_reverse: malformed utf8 input");
+		}
+
+		utf8_write(dstp, width, cp);
+
+		bytes_remaining -= width;
+		srcp += width;
+		dstp -= width;
+	}
+
+	if (srcp != src_end || dstp != dst_start) {
+		failwith("ml_string_reverse: desynchronised");
+	}
+
+	CAMLreturn(dst);
+}
+
 CAMLprim value inspect(value ty, value x)
 {
 	CAMLparam2(ty, x);
