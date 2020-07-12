@@ -384,7 +384,7 @@ CAMLprim value ml_string_get(value src, value i)
 CAMLprim value ml_string_unpack(value src)
 {
 	CAMLparam1(src);
-	CAMLlocal2(fst, next);
+	CAMLlocal3(fst, prev, next);
 
 	fst = Val_int(0);  // represents idris's Nil
 
@@ -400,11 +400,21 @@ CAMLprim value ml_string_unpack(value src)
 			caml_failwith("ml_string_unpack: malformed string");
 		}
 
-		next = fst;
+		// special case for the first cell
+		if (Is_long(fst)) {
+			fst = caml_alloc(2, 1);  // idris's (::) has tag 1
+			Store_field(fst, 0, Val_int(cp));
+			Store_field(fst, 1, Val_int(0));  // points to Nil
 
-		fst = caml_alloc(2, 1);  // idris's (::) has tag 1
-		Store_field(fst, 0, Val_int(cp));
-		Store_field(fst, 1, next);
+			prev = fst;
+		} else {
+			next = caml_alloc(2, 1);
+			Store_field(next, 0, Val_int(cp));
+			Store_field(next, 1, Val_int(0));  // points to Nil
+
+			Store_field(prev, 1, next);  // point prev->next to next
+			prev = next;
+		}
 
 		bytes_remaining -= cp_width;
 		srcp += cp_width;
@@ -418,7 +428,7 @@ CAMLprim value ml_string_pack(value cps)
 	CAMLparam1(cps);
 	CAMLlocal2(p, dst);
 
-	// first pass: get total number of bytes
+	// first pass: get the total number of bytes
 	size_t total_width = 0;
 	for (p = cps; Is_block(p); p = Field(p, 1))
 	{
