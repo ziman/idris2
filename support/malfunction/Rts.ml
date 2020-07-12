@@ -65,19 +65,7 @@ module String = struct
     external head : string -> char = "ml_string_head";
     external tail : string -> string = "ml_string_tail";
     external get : string -> int -> char = "ml_string_get";
-
-    let unpack (s : bytes) : char idris_list =
-        let rec decode (acc : char list) (ofs : int) =
-            match LowLevel.utf8_read ofs s with
-            | LowLevel.EOF ->
-              let rec rev (acc : char idris_list) = function
-                  | [] -> acc
-                  | x :: xs -> rev (Cons (x, acc)) xs
-                in rev Nil acc
-            | LowLevel.Character (c, w) ->
-                decode (c :: acc) (ofs + w)
-            | LowLevel.Malformed -> failwith "malformed string"
-          in decode [] 0
+    external unpack : string -> char idris_list = "ml_string_unpack";
 
     let pack (cs : char idris_list) : bytes =
         let total_length = IdrisList.foldl (fun l c -> l + LowLevel.utf8_width c) 0 cs in

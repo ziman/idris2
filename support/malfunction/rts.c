@@ -381,6 +381,35 @@ CAMLprim value ml_string_get(value src, value i)
 	CAMLreturn(Val_int(cp));
 }
 
+CAMLprim value ml_string_unpack(value src)
+{
+	CAMLparam1(src);
+	CAMLlocal2(fst, next);
+
+	fst = Val_int(0);  // represents idris's Nil
+
+	const uint8_t * srcp = Bytes_val(src);
+	size_t bytes_remaining = caml_string_length(src);
+
+	while (bytes_remaining > 0)
+	{
+		uint32_t cp;
+		size_t cp_width = utf8_read(srcp, bytes_remaining, &cp);
+		if (cp_width == 0)
+		{
+			failwith("ml_string_unpack: malformed string");
+		}
+
+		next = fst;
+
+		fst = caml_alloc(2, 1);  // idris's (::) has tag 1
+		Store_field(fst, 0, Val_int(cp));
+		Store_field(fst, 1, next);
+	}
+
+	CAMLreturn(fst);
+}
+
 CAMLprim value inspect(value ty, value x)
 {
 	CAMLparam2(ty, x);
