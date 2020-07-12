@@ -181,7 +181,7 @@ static inline void utf8_write(uint8_t * buf, size_t cp_width, uint32_t cp)
 {
 	switch (cp_width) {
 		case 1:
-			buf[0] = cp;
+			buf[0] = cp & 0x7F;
 			break;
 
 		case 2:
@@ -203,7 +203,7 @@ static inline void utf8_write(uint8_t * buf, size_t cp_width, uint32_t cp)
 			break;
 
 		default:
-			caml_failwith("utf8_write: invalid code point value");
+			caml_failwith("utf8_write: invalid code point width");
 			break;
 	}
 }
@@ -286,12 +286,13 @@ CAMLprim value ml_string_substring(value n_skip, value n_chars, value src)
 	CAMLreturn(dst);
 }
 
-CAMLprim value ml_string_cons(value cp, value src)
+CAMLprim value ml_string_cons(value cpv, value src)
 {
-	CAMLparam2(cp, src);
+	CAMLparam2(cpv, src);
 	CAMLlocal1(dst);
 
 	const size_t src_length = caml_string_length(src);
+	const uint32_t cp = Int_val(cpv);
 	const size_t cp_width = utf8_width(cp);
 
 	dst = caml_alloc_string(cp_width + src_length);
@@ -358,7 +359,7 @@ CAMLprim value ml_string_tail(value src)
 	dst = caml_alloc_string(src_length - cp_width);
 	memcpy(Bytes_val(dst), srcp + cp_width, src_length - cp_width);
 	
-	// printf("ml_string_tail(%s) -> %s\n", Bytes_val(src), Bytes_val(dst));
+	printf("ml_string_tail(%s) -> %s\n", Bytes_val(src), Bytes_val(dst));
 
 	CAMLreturn(dst);
 }
