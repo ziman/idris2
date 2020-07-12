@@ -64,17 +64,7 @@ module String = struct
     external length : string -> int = "ml_string_length";
     external head : string -> char = "ml_string_head";
     external tail : string -> string = "ml_string_tail";
-
-    let get (s : bytes) (i : int) : char =
-        let rec go (j : int) (ofs : int) =
-            match LowLevel.utf8_read ofs s with
-            | LowLevel.EOF -> failwith "string too short"
-            | LowLevel.Character (c, w) ->
-                (match j with
-                | 0 -> c
-                | _ -> go (j - 1) (ofs + w))
-            | LowLevel.Malformed -> failwith "malformed string"
-          in go i 0
+    external get : string -> int -> char = "ml_string_get";
 
     let unpack (s : bytes) : char idris_list =
         let rec decode (acc : char list) (ofs : int) =

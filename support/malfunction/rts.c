@@ -362,6 +362,25 @@ CAMLprim value ml_string_tail(value src)
 	CAMLreturn(dst);
 }
 
+CAMLprim value ml_string_get(value src, value i)
+{
+	CAMLparam2(src, i);
+
+	const uint8_t * src_start = Bytes_val(src);
+	const uint8_t * src_end = src_start + caml_string_length(src);
+
+	const uint8_t * p = utf8_skip_chars(src_start, src_end - src_start, Int_val(i));
+	
+	uint32_t cp;
+	size_t cp_width = utf8_read(p, src_end - p, &cp);
+	if (cp_width == 0)
+	{
+		failwith("ml_string_get: out of bounds or malformed string");
+	}
+
+	CAMLreturn(Val_int(cp));
+}
+
 CAMLprim value inspect(value ty, value x)
 {
 	CAMLparam2(ty, x);
