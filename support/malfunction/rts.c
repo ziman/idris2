@@ -246,15 +246,11 @@ CAMLprim value ml_string_reverse(value src)
 	CAMLreturn(dst);
 }
 
+// will return the pointer to the NUL byte if out of bounds
 const uint8_t * utf8_skip_chars(const uint8_t * buf, size_t buf_length, size_t n_chars)
 {
-	while (n_chars > 0)
+	while (n_chars > 0 && buf_length > 0)
 	{
-		if (buf_length == 0)
-		{
-			caml_failwith("utf8_skip_chars: out of bounds");
-		}
-
 		uint32_t cp;
 		const size_t cp_width = utf8_read(buf, buf_length, &cp);
 		if (cp_width == 0) {
@@ -372,6 +368,10 @@ CAMLprim value ml_string_get(value src, value i)
 	const uint8_t * src_end = src_start + caml_string_length(src);
 
 	const uint8_t * p = utf8_skip_chars(src_start, src_end - src_start, Int_val(i));
+	if (p == src_end)
+	{
+		caml_failwith("ml_string_get: index out of bounds");
+	}
 	
 	uint32_t cp;
 	const size_t cp_width = utf8_read(p, src_end - p, &cp);
