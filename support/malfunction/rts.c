@@ -405,6 +405,9 @@ CAMLprim value ml_string_unpack(value src)
 		fst = caml_alloc(2, 1);  // idris's (::) has tag 1
 		Store_field(fst, 0, Val_int(cp));
 		Store_field(fst, 1, next);
+
+		bytes_remaining -= cp_width;
+		srcp += cp_width;
 	}
 
 	CAMLreturn(fst);
