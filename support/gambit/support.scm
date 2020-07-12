@@ -67,6 +67,11 @@
     (cons (vector-ref xs 1) (from-idris-list (vector-ref xs 2)))))
 (define-macro (string-pack xs)
   `(apply string (from-idris-list ,xs)))
+(define (to-idris-list xs)
+  (if (null? xs)
+    (vector 0))
+    (vector 1 (car xs) (to-idris-list (cdr xs))))
+(define (string-unpack s) (to-idris-list (string->list s)))
 (define-macro (string-concat xs)
   `(apply string-append (from-idris-list xs)))
 

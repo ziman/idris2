@@ -1133,6 +1133,7 @@ fastPack : List Char -> String
 fastPack = prim__fastPack
 
 %foreign
+  "scheme:string-unpack"
   "ML:Rts.String.unpack"
 prim__fastUnpack : String -> List Char
 
