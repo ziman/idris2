@@ -156,7 +156,8 @@ static inline size_t utf8_read(const uint8_t * bytes, size_t length, uint32_t * 
 }
 
 // zero = error
-static inline size_t utf8_width(uint32_t cp) {
+static inline size_t utf8_width(uint32_t cp)
+{
 	if (cp < 0x80) {
 		return 1;
 	}
@@ -176,7 +177,8 @@ static inline size_t utf8_width(uint32_t cp) {
 	return 0;  // code too high
 }
 
-static inline void utf8_write(uint8_t * buf, size_t width, uint32_t cp) {
+static inline void utf8_write(uint8_t * buf, size_t width, uint32_t cp)
+{
 	switch (width) {
 		case 1:
 			buf[0] = cp;
@@ -206,7 +208,8 @@ static inline void utf8_write(uint8_t * buf, size_t width, uint32_t cp) {
 	}
 }
 
-CAMLprim value ml_string_reverse(value src) {
+CAMLprim value ml_string_reverse(value src)
+{
 	CAMLparam1(src);
 	CAMLlocal1(dst);
 
@@ -239,6 +242,64 @@ CAMLprim value ml_string_reverse(value src) {
 	if (srcp != src_end || dstp != dst_start) {
 		failwith("ml_string_reverse: desynchronised");
 	}
+
+	CAMLreturn(dst);
+}
+
+const uint8_t * utf8_skip_chars(const uint8_t * buf, size_t buf_length, size_t n_chars)
+{
+	uint32_t cp;
+
+	while (n_chars > 0)
+	{
+		if (buf_length == 0)
+		{
+			failwith("utf8_skip_chars: out of bounds");
+		}
+
+		size_t width = utf8_read(buf, buf_length, &cp);
+		if (width == 0) {
+			failwith("utf8_skip_chars: out of bounds or malformed string");
+		}
+
+		buf += width;
+		buf_length -= width;
+		n_chars--;
+	}
+
+	return buf;
+}
+
+CAMLprim value ml_string_substring(value n_skip, value n_chars, value src)
+{
+	CAMLparam3(n_skip, n_chars, src);
+	CAMLlocal1(dst);
+
+	uint8_t * src = Bytes_val(src);
+	uint8_t * src_end = src + caml_string_length(src);
+
+	uint8_t * start = utf8_skip_chars(src, src_end - src, Int_val(n_skip));
+	uint8_t * end   = utf8_skip_chars(start, src_end - start, Int_val(n_chars));
+
+	dst = caml_alloc_string(end - start);
+	memcpy(dst, start, end-start);
+
+	CAMLreturn(dst);
+}
+
+CAMLprim value ml_string_cons(value cp, value src)
+{
+	CAMLparam2(cp, src);
+	CAMLlocal1(dst);
+
+	size_t src_length = caml_string_length(src);
+	size_t cp_width = utf8_width(cp);
+
+	dst = caml_alloc_string(cp_width + src_length);
+	uint8_t * dstp = Bytes_val(dst);
+
+	utf8_write(dstp, cp_width, cp);
+	memcpy(dstp+cp_width, Bytes_val(src), src_length);
 
 	CAMLreturn(dst);
 }

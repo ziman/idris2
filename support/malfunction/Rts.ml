@@ -58,25 +58,9 @@ module System = struct
 end
 
 module String = struct
-    external reverse : bytes -> bytes = "ml_string_reverse";
-
-    (* get the byte offset after skipping N chars from the starting byte offset *)
-    (* this function stops at the end of the string without throwing an error there *)
-    let rec get_end_ofs (ofs : int) (nchars : int) (s : bytes) : int =
-        match nchars with
-        | 0 -> ofs
-        | _ -> match LowLevel.utf8_read ofs s with
-            | LowLevel.EOF -> ofs (* failwith "string too short" *)
-            | LowLevel.Character (_, w) -> get_end_ofs (ofs + w) (nchars - 1) s
-            | LowLevel.Malformed -> failwith "malformed string"
-
-    let cons (c : char) (s : bytes) : bytes =
-        let w = LowLevel.utf8_width c in
-        let l = Bytes.length s in
-        let s' = Bytes.create (w + Bytes.length s) in
-        LowLevel.utf8_write c 0 s';
-        Bytes.blit s 0 s' w l;
-        s'
+    external reverse : string -> string = "ml_string_reverse";
+    external substring : int -> int -> string -> string = "ml_string_substring";
+    external cons : char -> string -> string = "ml_string_cons";
 
     let length (s : bytes) : int =
         let rec go (acc : int) (ofs : int) =
@@ -85,13 +69,6 @@ module String = struct
             | LowLevel.Character (_, w) -> go (acc + 1) (ofs + w)
             | LowLevel.Malformed -> failwith "malformed string"
           in go 0 0
-
-    let substring (ofs_chars : int) (nchars : int) (s : bytes) : bytes =
-        let ofs = get_end_ofs 0 ofs_chars s in
-        let len = get_end_ofs ofs nchars s - ofs in
-        let result = Bytes.create len in
-        Bytes.blit s ofs result 0 len;
-        result
 
     let head (s : bytes) : char =
         match LowLevel.utf8_read 0 s with
