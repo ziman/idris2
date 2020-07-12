@@ -79,7 +79,7 @@ static inline size_t utf8_read(const uint8_t * bytes, size_t length, uint32_t * 
 
 	if (bytes[0] < 0x80) {
 		// one-byte representation
-		*out_cp = (uint32_t) *bytes;
+		*out_cp = (uint32_t) bytes[0];
 		return 1;
 	}
 
@@ -100,8 +100,8 @@ static inline size_t utf8_read(const uint8_t * bytes, size_t length, uint32_t * 
 		}
 
 		*out_cp =
-			  ((bytes[0] & 0x1F) << 6)
-			|  (bytes[1] & 0x3F)
+			  ((uint32_t) (bytes[0] & 0x1F) << 6)
+			|  (uint32_t) (bytes[1] & 0x3F)
 			;
 		return 2;
 	}
@@ -121,9 +121,9 @@ static inline size_t utf8_read(const uint8_t * bytes, size_t length, uint32_t * 
 		}
 
 		*out_cp =
-			  ((bytes[0] & 0x0F) << 12)
-			| ((bytes[1] & 0x3F) <<  6)
-			|  (bytes[2] & 0x3F)
+			  ((uint32_t) (bytes[0] & 0x0F) << 12)
+			| ((uint32_t) (bytes[1] & 0x3F) <<  6)
+			|  (uint32_t) (bytes[2] & 0x3F)
 			;
 		return 3;
 	}
@@ -144,10 +144,10 @@ static inline size_t utf8_read(const uint8_t * bytes, size_t length, uint32_t * 
 		}
 
 		*out_cp =
-			  ((bytes[0] & 0x07) << 18)
-			| ((bytes[1] & 0x3F) << 12)
-			| ((bytes[2] & 0x3F) <<  6)
-			|  (bytes[3] & 0x3F)
+			  ((uint32_t) (bytes[0] & 0x07) << 18)
+			| ((uint32_t) (bytes[1] & 0x3F) << 12)
+			| ((uint32_t) (bytes[2] & 0x3F) <<  6)
+			|  (uint32_t) (bytes[3] & 0x3F)
 			;
 		return 4;
 	}
@@ -357,6 +357,8 @@ CAMLprim value ml_string_tail(value src)
 
 	dst = caml_alloc_string(src_length - cp_width);
 	memcpy(Bytes_val(dst), srcp + cp_width, src_length - cp_width);
+	
+	// printf("ml_string_tail(%s) -> %s\n", Bytes_val(src), Bytes_val(dst));
 
 	CAMLreturn(dst);
 }
