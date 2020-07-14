@@ -381,6 +381,32 @@ CAMLprim value ml_string_get(value src, value i)
 	CAMLreturn(Val_int(cp));
 }
 
+void sanity_check(const char * msg, value s)
+{
+	const uint8_t * p = Bytes_val(s);
+	size_t bytes_remaining = caml_string_length(s);
+
+	printf("validating: %s\n", p);
+	printf("strlen = %d, caml_string_length = %d\n", strlen(p), bytes_remaining);
+	printf("---------------------------------------------------\n");
+
+	while (bytes_remaining > 0)
+	{
+		uint32_t cp;
+		const size_t cp_width = utf8_read(p, bytes_remaining, &cp);
+		if (cp_width == 0)
+		{
+			printf("%p: %s\n", p, p);
+			printf("%s: sanity check failed\n", msg);
+			*((int *) 0) = 0;  // segfault for gdb
+			caml_failwith("sanity_check: malformed string");
+		}
+
+		p += cp_width;
+		bytes_remaining -= cp_width;
+	}
+}
+
 CAMLprim value ml_string_unpack(value src)
 {
 	CAMLparam1(src);
@@ -390,11 +416,6 @@ CAMLprim value ml_string_unpack(value src)
 
 	const uint8_t * srcp = Bytes_val(src);
 	size_t bytes_remaining = caml_string_length(src);
-	/*
-	printf("unpacking: %s\n", src);
-	printf("strlen = %d, caml_string_length = %d\n", strlen(srcp), bytes_remaining);
-	printf("---------------------------------------------------\n");
-	*/
 
 	while (bytes_remaining > 0)
 	{
@@ -402,10 +423,6 @@ CAMLprim value ml_string_unpack(value src)
 		const size_t cp_width = utf8_read(srcp, bytes_remaining, &cp);
 		if (cp_width == 0)
 		{
-			/*
-			printf("%s\n", srcp);
-			*((int *) 0) = 0;  // segfault for gdb
-			*/
 			caml_failwith("ml_string_unpack: malformed string");
 		}
 
@@ -479,6 +496,7 @@ CAMLprim value ml_string_concat(value ss)
 	size_t total_width = 0;
 	for (p = ss; Is_block(p); p = Field(p, 1))
 	{
+		sanity_check("ml_string_concat", Field(p, 0));
 		total_width += caml_string_length(Field(p, 0));
 	}
 
@@ -488,7 +506,6 @@ CAMLprim value ml_string_concat(value ss)
 	for (p = ss; Is_block(p); p = Field(p, 1))
 	{
 		s = Field(p, 0);
-		// ml_string_unpack(s);  <-- sanity check
 
 		const uint8_t * srcp = Bytes_val(s);
 		const size_t width = caml_string_length(s);
