@@ -232,7 +232,7 @@ CAMLprim value ml_string_reverse(value src)
 			caml_failwith("ml_string_reverse: malformed utf8 input");
 		}
 
-		utf8_write(dstp, cp_width, cp);
+		utf8_write(dstp-cp_width, cp_width, cp);
 
 		bytes_remaining -= cp_width;
 		srcp += cp_width;
