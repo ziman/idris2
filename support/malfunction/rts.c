@@ -624,24 +624,14 @@ CAMLprim value ml_idris2_fpoll(value file) {
 
 CAMLprim value ml_idris2_readLine(value file) {
   CAMLparam1(file);
-  CAMLlocal1(result);
-
   char * rptr = idris2_readLine((FILE *) file);
-  result = caml_copy_string(rptr);
-  free(rptr);
-
-  CAMLreturn(result);
+  CAMLreturn((value) rptr);
 }
 
 CAMLprim value ml_idris2_readChars(value num, value file) {
   CAMLparam2(num, file);
-  CAMLlocal1(result);
-
   char * rptr = idris2_readChars(Int_val(num), (FILE *) file);
-  result = caml_copy_string(rptr);
-  free(rptr);
-
-  CAMLreturn(result);
+  CAMLreturn((value) rptr);
 }
 
 CAMLprim value ml_idris2_writeLine(value file, value str) {
@@ -694,13 +684,8 @@ CAMLprim value ml_idris2_stderr(value unit) {
 
 CAMLprim value ml_idris2_currentDirectory(value unit) {
   CAMLparam1(unit);
-  CAMLlocal1(result);
-
   char * rptr = idris2_currentDirectory();
-  result = caml_copy_string(rptr);
-  free(rptr);
-
-  CAMLreturn(result);
+  CAMLreturn((value) result);
 }
 
 CAMLprim value ml_idris2_changeDir(value dir) {
@@ -735,13 +720,8 @@ CAMLprim value ml_idris2_removeDir(value dir) {
 
 CAMLprim value ml_idris2_nextDirEntry(value dirInfo) {
   CAMLparam1(dirInfo);
-  CAMLlocal1(result);
-
   const char * rptr = idris2_nextDirEntry((void *)dirInfo);
-  result = caml_copy_string(rptr);
-  // DO NOT free(rptr);
-
-  CAMLreturn(result);
+  CAMLreturn((value) rptr);
 }
 
 /*  libc stuff  */
@@ -750,9 +730,6 @@ CAMLprim value ml_getenv(value s)
 {
 	CAMLparam1(s);
 	const char * rptr = getenv(String_val(s));
-	// this is correct; no caml_copy_string() here
-	// ml_getenv is meant to return a string pointer,
-	// which will be later checked for NULLness
 	CAMLreturn((value) rptr);
 }
 
