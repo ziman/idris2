@@ -71,6 +71,9 @@ end
 
 module Bytes = struct
     (* pre-allocate a big buffer once and copy all strings in it *)
+    external concat : string idris_list -> string = "ml_string_concat"
+
+    (* implemented in C for easier debugging
     let concat (ssi : bytes idris_list) : bytes =
         let ss = IdrisList.to_list ssi in
         let total_length = List.fold_left (fun l s -> l + Bytes.length s) 0 ss in
@@ -85,6 +88,7 @@ module Bytes = struct
           in
         write_strings 0 ssi;
         result
+    *)
 
     let append (x : bytes) (y : bytes) : bytes =
         let xlen = Bytes.length x in

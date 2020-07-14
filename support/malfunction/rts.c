@@ -390,6 +390,11 @@ CAMLprim value ml_string_unpack(value src)
 
 	const uint8_t * srcp = Bytes_val(src);
 	size_t bytes_remaining = caml_string_length(src);
+	/*
+	printf("unpacking: %s\n", src);
+	printf("strlen = %d, caml_string_length = %d\n", strlen(srcp), bytes_remaining);
+	printf("---------------------------------------------------\n");
+	*/
 
 	while (bytes_remaining > 0)
 	{
@@ -397,6 +402,10 @@ CAMLprim value ml_string_unpack(value src)
 		const size_t cp_width = utf8_read(srcp, bytes_remaining, &cp);
 		if (cp_width == 0)
 		{
+			/*
+			printf("%s\n", srcp);
+			*((int *) 0) = 0;  // segfault for gdb
+			*/
 			caml_failwith("ml_string_unpack: malformed string");
 		}
 
@@ -456,6 +465,37 @@ CAMLprim value ml_string_pack(value cps)
 
 		utf8_write(dstp, cp_width, cp);
 		dstp += cp_width;
+	}
+
+	CAMLreturn(dst);
+}
+
+CAMLprim value ml_string_concat(value ss)
+{
+	CAMLparam1(ss);
+	CAMLlocal3(p, s, dst);
+
+	// first pass: get the total number of bytes
+	size_t total_width = 0;
+	for (p = ss; Is_block(p); p = Field(p, 1))
+	{
+		total_width += caml_string_length(Field(p, 0));
+	}
+
+	// second pass: copy the strings
+	dst = caml_alloc_string(total_width);
+	uint8_t * dstp = Bytes_val(dst);
+	for (p = ss; Is_block(p); p = Field(p, 1))
+	{
+		s = Field(p, 0);
+		// ml_string_unpack(s);  <-- sanity check
+
+		const uint8_t * srcp = Bytes_val(s);
+		const size_t width = caml_string_length(s);
+
+		memcpy(dstp, srcp, width);
+
+		dstp += width;
 	}
 
 	CAMLreturn(dst);
