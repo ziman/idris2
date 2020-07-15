@@ -278,12 +278,13 @@ CAMLprim value ml_string_substring(value n_skip, value n_chars, value src)
 
 	const uint8_t * substr_start = utf8_skip_chars(src_start, src_end - src_start, Int_val(n_skip));
 	const uint8_t * substr_end   = utf8_skip_chars(substr_start, src_end - substr_start, Int_val(n_chars));
+	const size_t subst_ofs = substr_start - src_start;
 	const size_t substr_width = substr_end - substr_start;
 
 	// here we allocate so pointers taken above are no longer valid
 	// hence we need to take Bytes_val() again, and refer only to the length
 	dst = caml_alloc_string(substr_end - substr_start);
-	memcpy(Bytes_val(dst), Bytes_val(src), substr_width);
+	memcpy(Bytes_val(dst), Bytes_val(src) + subst_ofs, substr_width);
 
 	CAMLreturn(dst);
 }
