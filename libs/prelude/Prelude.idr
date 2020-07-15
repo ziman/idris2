@@ -1137,6 +1137,10 @@ fastPack = prim__fastPack
   "ML:Rts.String.unpack"
 prim__fastUnpack : String -> List Char
 
+public export
+fastUnpack : String -> List Char
+fastUnpack = prim__fastUnpack
+
 ||| Turns a string into a list of characters.
 |||
 ||| ```idris example
@@ -1144,7 +1148,13 @@ prim__fastUnpack : String -> List Char
 ||| ```
 public export
 unpack : String -> List Char
-unpack = prim__fastUnpack
+unpack str = unpack' (prim__cast_IntegerInt (natToInteger (length str)) - 1) str []
+  where
+    unpack' : Int -> String -> List Char -> List Char
+    unpack' pos str acc
+        = if pos < 0
+             then acc
+             else assert_total $ unpack' (pos - 1) str (assert_total (prim__strIndex str pos)::acc)
 
 public export
 Semigroup String where
