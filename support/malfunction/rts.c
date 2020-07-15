@@ -546,13 +546,14 @@ CAMLprim value ml_idris2_getStr(value unit)
 CAMLprim value ml_idris2_getString(value sptr)
 {
 	CAMLparam1(sptr);
-	CAMLlocal1(result);
-
-	const char * rptr = idris2_getString((void *) sptr);
-	result = caml_copy_string(rptr);
-	// DO NOT free(rptr);
-
-	CAMLreturn(result);
+	// sptr represents Ptr String
+	//
+	// which is either 0L
+	// or a caml string
+	//
+	// since we always need an is_Null check before calling this function
+	// the former can never be the case
+	CAMLreturn(sptr);
 }
 
 CAMLprim value ml_idris2_getEnvPair(value i)
@@ -624,14 +625,24 @@ CAMLprim value ml_idris2_fpoll(value file) {
 
 CAMLprim value ml_idris2_readLine(value file) {
   CAMLparam1(file);
+  CAMLlocal1(result);
+
   char * rptr = idris2_readLine((FILE *) file);
-  CAMLreturn((value) rptr);
+  result = rptr ? caml_copy_string(rptr) : 0;
+  free(rptr);
+
+  CAMLreturn(result);
 }
 
 CAMLprim value ml_idris2_readChars(value num, value file) {
   CAMLparam2(num, file);
+  CAMLlocal1(result);
+
   char * rptr = idris2_readChars(Int_val(num), (FILE *) file);
-  CAMLreturn((value) rptr);
+  result = rptr ? caml_copy_string(rptr) : 0;
+  free(rptr);
+
+  CAMLreturn(result);
 }
 
 CAMLprim value ml_idris2_writeLine(value file, value str) {
@@ -684,8 +695,13 @@ CAMLprim value ml_idris2_stderr(value unit) {
 
 CAMLprim value ml_idris2_currentDirectory(value unit) {
   CAMLparam1(unit);
+  CAMLlocal1(result);
+
   char * rptr = idris2_currentDirectory();
-  CAMLreturn((value) result);
+  result = rptr ? caml_copy_string(rptr) : 0;
+  free(rptr);
+
+  CAMLreturn(result);
 }
 
 CAMLprim value ml_idris2_changeDir(value dir) {
@@ -720,8 +736,13 @@ CAMLprim value ml_idris2_removeDir(value dir) {
 
 CAMLprim value ml_idris2_nextDirEntry(value dirInfo) {
   CAMLparam1(dirInfo);
+  CAMLlocal1(result);
+
   const char * rptr = idris2_nextDirEntry((void *)dirInfo);
-  CAMLreturn((value) rptr);
+  result = rptr ? caml_copy_string(rptr) : 0;
+  // do NOT free rptr here
+
+  CAMLreturn(result);
 }
 
 /*  libc stuff  */
@@ -729,8 +750,13 @@ CAMLprim value ml_idris2_nextDirEntry(value dirInfo) {
 CAMLprim value ml_getenv(value s)
 {
 	CAMLparam1(s);
+	CAMLlocal1(result);
+
 	const char * rptr = getenv(String_val(s));
-	CAMLreturn((value) rptr);
+	result = rptr ? caml_copy_string(rptr) : 0;
+	// do NOT free rptr
+
+	CAMLreturn(result);
 }
 
 CAMLprim value ml_system(value s)
