@@ -439,14 +439,23 @@ pack : List Char -> String
 pack [] = ""
 pack (x :: xs) = strCons x (pack xs)
 
+%foreign
+  "scheme:string-pack"
+  "ML:Rts.String.pack"
+prim__fastPack : List Char -> String
+
 export
 fastPack : List Char -> String
-fastPack xs
-   = unsafePerformIO (schemeCall String "string" (toFArgs xs))
-  where
-    toFArgs : List Char -> FArgList
-    toFArgs [] = []
-    toFArgs (x :: xs) = x :: toFArgs xs
+fastPack = prim__fastPack
+
+%foreign
+  "scheme:string-unpack"
+  "ML:Rts.String.unpack"
+prim__fastUnpack : String -> List Char
+
+public export
+fastUnpack : String -> List Char
+fastUnpack = prim__fastUnpack
 
 ||| Turns a string into a list of characters.
 |||

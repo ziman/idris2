@@ -26,6 +26,8 @@ modules =
     Compiler.Scheme.Gambit,
     Compiler.Scheme.Common,
 
+    Compiler.Malfunction,
+
     Core.AutoSearch,
     Core.Binary,
     Core.CaseBuilder,
@@ -170,6 +172,7 @@ modules =
     Utils.Hex,
     Utils.Octal,
     Utils.Path,
+    Utils.Pretty,
     Utils.Shunting,
     Utils.String,
 
