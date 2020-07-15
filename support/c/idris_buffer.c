@@ -41,13 +41,17 @@ void idris2_setBufferByte(void* buffer, int loc, int byte) {
     }
 }
 
-void idris2_setBufferInt(void* buffer, int loc, int val) {
+void idris2_setBufferInt(void* buffer, int loc, int64_t val) {
     Buffer* b = buffer;
     if (loc >= 0 && loc+3 < b->size) {
-        b->data[loc] = val & 0xff;
-        b->data[loc+1] = (val >> 8) & 0xff;
+        b->data[loc  ] =  val        & 0xff;
+        b->data[loc+1] = (val >>  8) & 0xff;
         b->data[loc+2] = (val >> 16) & 0xff;
         b->data[loc+3] = (val >> 24) & 0xff;
+        b->data[loc+4] = (val >> 32) & 0xff;
+        b->data[loc+5] = (val >> 40) & 0xff;
+        b->data[loc+6] = (val >> 48) & 0xff;
+        b->data[loc+7] = (val >> 56) & 0xff;
     }
 }
 
