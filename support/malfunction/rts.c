@@ -216,6 +216,9 @@ CAMLprim value ml_string_reverse(value src)
 	const size_t src_length = caml_string_length(src);
 	dst = caml_alloc_string(src_length);
 
+	// all allocations are done, now we're going to take (char *) pointers
+	// don't do any allocations anymore because it may invalidate the pointers!
+
 	const uint8_t * src_start = Bytes_val(src);
 	const uint8_t * src_end = src_start + src_length;
 	const uint8_t * srcp = src_start;
@@ -275,9 +278,12 @@ CAMLprim value ml_string_substring(value n_skip, value n_chars, value src)
 
 	const uint8_t * substr_start = utf8_skip_chars(src_start, src_end - src_start, Int_val(n_skip));
 	const uint8_t * substr_end   = utf8_skip_chars(substr_start, src_end - substr_start, Int_val(n_chars));
+	const size_t substr_width = substr_end - substr_start;
 
+	// here we allocate so pointers taken above are no longer valid
+	// hence we need to take Bytes_val() again, and refer only to the length
 	dst = caml_alloc_string(substr_end - substr_start);
-	memcpy(Bytes_val(dst), substr_start, substr_end - substr_start);
+	memcpy(Bytes_val(dst), Bytes_val(src), substr_width);
 
 	CAMLreturn(dst);
 }
@@ -292,6 +298,8 @@ CAMLprim value ml_string_cons(value cpv, value src)
 	const size_t cp_width = utf8_width(cp);
 
 	dst = caml_alloc_string(cp_width + src_length);
+
+	// we take the pointer after allocation so it's fine
 	uint8_t * dstp = Bytes_val(dst);
 
 	utf8_write(dstp, cp_width, cp);
@@ -352,8 +360,10 @@ CAMLprim value ml_string_tail(value src)
 		caml_failwith("ml_string_tail: empty or malformed string");
 	}
 
+	// allocation invalidates srcp
 	dst = caml_alloc_string(src_length - cp_width);
-	memcpy(Bytes_val(dst), srcp + cp_width, src_length - cp_width);
+
+	memcpy(Bytes_val(dst), Bytes_val(src) + cp_width, src_length - cp_width);
 	
 	CAMLreturn(dst);
 }
@@ -471,7 +481,7 @@ CAMLprim value ml_string_pack(value cps)
 
 	// second pass: encode the characters
 	dst = caml_alloc_string(total_width);
-	uint8_t * dstp = Bytes_val(dst);
+	uint8_t * dstp = Bytes_val(dst);  // must come after the allocation
 	for (p = cps; Is_block(p); p = Field(p, 1))
 	{
 		const uint32_t cp = Int_val(Field(p, 0));
@@ -502,7 +512,7 @@ CAMLprim value ml_string_concat(value ss)
 
 	// second pass: copy the strings
 	dst = caml_alloc_string(total_width);
-	uint8_t * dstp = Bytes_val(dst);
+	uint8_t * dstp = Bytes_val(dst);  // must come after the allocation
 	for (p = ss; Is_block(p); p = Field(p, 1))
 	{
 		s = Field(p, 0);
