@@ -883,7 +883,7 @@ CAMLprim value ml_idris2_readBufferData(value file, value buffer, value loc, val
 
 CAMLprim value ml_idris2_writeBufferData(value file, value buffer, value loc, value len) {
   CAMLparam4(file, buffer, loc, len);
-  const int result = idris2_writeBufferData((FILE *)file, (char *)buffer, Int_val(loc), Int_val(len));
+  const int result = idris2_writeBufferDataFrom((FILE *)file, (Buffer *)buffer, Int_val(loc), Int_val(len));
   CAMLreturn(Val_int(result));
 }
 

@@ -128,6 +128,10 @@ int idris2_readBufferData(FILE* h, char* buffer, int loc, int max) {
     return fread(buffer+loc, sizeof(uint8_t), (size_t)max, h);
 }
 
+int idris2_writeBufferDataFrom(FILE* h, Buffer* buffer, int loc, int len) {
+    return fwrite(buffer->data + loc, sizeof(uint8_t), len, h);
+}
+
 int idris2_writeBufferData(FILE* h, char* buffer, int loc, int len) {
     return fwrite(buffer+loc, sizeof(uint8_t), len, h);
 }

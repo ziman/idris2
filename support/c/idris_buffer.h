@@ -27,6 +27,8 @@ void idris2_copyBuffer(void* from, int start, int len,
 int idris2_readBufferData(FILE* h, char* buffer, int loc, int max);
 int idris2_readBufferDataInto(FILE* h, Buffer* buffer, int loc, int max);
 int idris2_writeBufferData(FILE* h, char* buffer, int loc, int len);
+int idris2_writeBufferDataFrom(FILE* h, Buffer* buffer, int loc, int len);
+
 
 int idris2_getBufferByte(void* buffer, int loc);
 int64_t idris2_getBufferInt(void* buffer, int loc);
