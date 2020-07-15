@@ -26,8 +26,9 @@ usleep sec = primIO (prim_usleep sec)
 -- This one is going to vary for different back ends. Probably needs a
 -- better convention. Will revisit...
 %foreign
-    "scheme:blodwen-args"
-    "ML:Rts.System.get_args"
+  "scheme:blodwen-args"
+  "ML:Rts.System.get_args"
+  "node:lambda:() => __prim_js2idris_array(process.argv.slice(1))"
 prim__getArgs : PrimIO (List String)
 
 export
@@ -35,7 +36,9 @@ getArgs : HasIO io => io (List String)
 getArgs = primIO prim__getArgs
 
 %foreign libc "getenv"
+         "node:lambda: n => process.env[n]"
 prim_getEnv : String -> PrimIO (Ptr String)
+
 %foreign support "idris2_getEnvPair"
 prim_getEnvPair : Int -> PrimIO (Ptr String)
 %foreign support "idris2_setenv"
@@ -72,17 +75,13 @@ export
 setEnv : HasIO io => String -> String -> Bool -> io Bool
 setEnv var val overwrite
    = do ok <- primIO $ prim_setEnv var val (if overwrite then 1 else 0)
-        if ok == 0
-           then pure True
-           else pure False
+        pure $ ok == 0
 
 export
 unsetEnv : HasIO io => String -> io Bool
 unsetEnv var
    = do ok <- primIO $ prim_unsetEnv var
-        if ok == 0
-           then pure True
-           else pure False
+        pure $ ok == 0
 
 %foreign libc "system"
          "scheme:blodwen-system"
@@ -101,6 +100,7 @@ time : HasIO io => io Integer
 time = pure $ cast !(primIO prim_time)
 
 %foreign libc "exit"
+         "node:lambda:c => process.exit(Number(c))"
 prim_exit : Int -> PrimIO ()
 
 ||| Programs can either terminate successfully, or end in a caught

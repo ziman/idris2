@@ -1,37 +1,29 @@
 module Data.List
 
-import Decidable.Equality
-
 public export
 isNil : List a -> Bool
-isNil []      = True
-isNil (x::xs) = False
+isNil [] = True
+isNil _  = False
 
 public export
 isCons : List a -> Bool
-isCons []      = False
-isCons (x::xs) = True
+isCons [] = False
+isCons _  = True
 
 public export
 snoc : List a -> a -> List a
 snoc xs x = xs ++ [x]
 
 public export
-length : List a -> Nat
-length []      = Z
-length (x::xs) = S (length xs)
-
-public export
 take : Nat -> List a -> List a
-take Z xs = []
-take (S k) [] = []
 take (S k) (x :: xs) = x :: take k xs
+take _ _ = []
 
 public export
 drop : (n : Nat) -> (xs : List a) -> List a
 drop Z     xs      = xs
 drop (S n) []      = []
-drop (S n) (x::xs) = drop n xs
+drop (S n) (_::xs) = drop n xs
 
 ||| Satisfiable if `k` is a valid index into `xs`
 |||
@@ -52,13 +44,12 @@ Uninhabited (InBounds k []) where
 ||| Decide whether `k` is a valid index into `xs`
 public export
 inBounds : (k : Nat) -> (xs : List a) -> Dec (InBounds k xs)
-inBounds k [] = No uninhabited
-inBounds Z (x :: xs) = Yes InFirst
+inBounds _ [] = No uninhabited
+inBounds Z (_ :: _) = Yes InFirst
 inBounds (S k) (x :: xs) with (inBounds k xs)
   inBounds (S k) (x :: xs) | (Yes prf) = Yes (InLater prf)
   inBounds (S k) (x :: xs) | (No contra)
-      = No (\p => case p of
-                       InLater y => contra y)
+      = No $ \(InLater y) => contra y
 
 ||| Find a particular element of a list.
 |||
@@ -66,7 +57,7 @@ inBounds (S k) (x :: xs) with (inBounds k xs)
 public export
 index : (n : Nat) -> (xs : List a) -> {auto ok : InBounds n xs} -> a
 index Z (x :: xs) {ok = InFirst} = x
-index (S k) (x :: xs) {ok = (InLater p)} = index k xs
+index (S k) (_ :: xs) {ok = InLater _} = index k xs
 
 ||| Generate a list by repeatedly applying a partial function until exhausted.
 ||| @ f the function to iterate
@@ -105,12 +96,11 @@ find p (x::xs) = if p x then Just x else find p xs
 public export
 lookupBy : (a -> a -> Bool) -> a -> List (a, b) -> Maybe b
 lookupBy p e []      = Nothing
-lookupBy p e (x::xs) =
-  let (l, r) = x in
-    if p e l then
-      Just r
-    else
-      lookupBy p e xs
+lookupBy p e ((l, r) :: xs) =
+  if p e l then
+    Just r
+  else
+    lookupBy p e xs
 
 ||| Find associated information in a list using Boolean equality.
 public export
@@ -121,11 +111,7 @@ lookup = lookupBy (==)
 public export
 elemBy : (a -> a -> Bool) -> a -> List a -> Bool
 elemBy p e []      = False
-elemBy p e (x::xs) =
-  if p e x then
-    True
-  else
-    elemBy p e xs
+elemBy p e (x::xs) = p e x || elemBy p e xs
 
 public export
 nubBy : (a -> a -> Bool) -> List a -> List a
@@ -341,14 +327,14 @@ Uninhabited (NonEmpty []) where
 public export
 head : (l : List a) -> {auto ok : NonEmpty l} -> a
 head [] impossible
-head (x :: xs) = x
+head (x :: _) = x
 
 ||| Get the tail of a non-empty list.
 ||| @ ok proof the list is non-empty
 public export
 tail : (l : List a) -> {auto ok : NonEmpty l} -> List a
 tail [] impossible
-tail (x :: xs) = xs
+tail (_ :: xs) = xs
 
 ||| Retrieve the last element of a non-empty list.
 ||| @ ok proof that the list is non-empty
@@ -363,20 +349,20 @@ last (x::y::ys) = last (y::ys)
 public export
 init : (l : List a) -> {auto ok : NonEmpty l} -> List a
 init [] impossible
-init [x] = []
+init [_] = []
 init (x::y::ys) = x :: init (y::ys)
 
 ||| Attempt to get the head of a list. If the list is empty, return `Nothing`.
 public export
 head' : List a -> Maybe a
 head' []      = Nothing
-head' (x::xs) = Just x
+head' (x::_) = Just x
 
 ||| Attempt to get the tail of a list. If the list is empty, return `Nothing`.
 export
 tail' : List a -> Maybe (List a)
 tail' []      = Nothing
-tail' (x::xs) = Just xs
+tail' (_::xs) = Just xs
 
 ||| Attempt to retrieve the last element of a non-empty list.
 |||
@@ -483,11 +469,8 @@ foldr1' f xs@(_::_) = Just (foldr1 f xs)
 ||| Check whether a list is sorted with respect to the default ordering for the type of its elements.
 export
 sorted : Ord a => List a -> Bool
-sorted []      = True
-sorted (x::xs) =
-  case xs of
-    Nil     => True
-    (y::ys) => x <= y && sorted (y::ys)
+sorted (x :: xs @ (y :: _)) = x <= y && sorted xs
+sorted _ = True
 
 ||| Merge two sorted lists using an arbitrary comparison
 ||| predicate. Note that the lists must have been sorted using this
@@ -539,13 +522,9 @@ sort = sortBy compare
 
 export
 isPrefixOfBy : (eq : a -> a -> Bool) -> (left, right : List a) -> Bool
-isPrefixOfBy p [] right        = True
-isPrefixOfBy p left []         = False
-isPrefixOfBy p (x::xs) (y::ys) =
-  if p x y then
-    isPrefixOfBy p xs ys
-  else
-    False
+isPrefixOfBy p [] _            = True
+isPrefixOfBy p _ []            = False
+isPrefixOfBy p (x::xs) (y::ys) = p x y && isPrefixOfBy p xs ys
 
 ||| The isPrefixOf function takes two lists and returns True iff the first list is a prefix of the second.
 export
@@ -607,26 +586,26 @@ export
 Uninhabited (Prelude.(::) x xs = []) where
   uninhabited Refl impossible
 
+||| (::) is injective
+export
+consInjective : {x : a} -> {xs : List a} -> {y : b} -> {ys : List b} ->
+                x :: xs = y :: ys -> (x = y, xs = ys)
+consInjective Refl = (Refl, Refl)
+
 ||| The empty list is a right identity for append.
 export
-appendNilRightNeutral : (l : List a) ->
-  l ++ [] = l
+appendNilRightNeutral : (l : List a) -> l ++ [] = l
 appendNilRightNeutral []      = Refl
-appendNilRightNeutral (x::xs) =
-  let inductiveHypothesis = appendNilRightNeutral xs in
-    rewrite inductiveHypothesis in Refl
+appendNilRightNeutral (_::xs) = rewrite appendNilRightNeutral xs in Refl
 
 ||| Appending lists is associative.
 export
-appendAssociative : (l : List a) -> (c : List a) -> (r : List a) ->
-  l ++ (c ++ r) = (l ++ c) ++ r
+appendAssociative : (l, c, r : List a) -> l ++ (c ++ r) = (l ++ c) ++ r
 appendAssociative []      c r = Refl
-appendAssociative (x::xs) c r =
-  let inductiveHypothesis = appendAssociative xs c r in
-    rewrite inductiveHypothesis in Refl
+appendAssociative (_::xs) c r = rewrite appendAssociative xs c r in Refl
 
 revOnto : (xs, vs : _) -> reverseOnto xs vs = reverse vs ++ xs
-revOnto xs [] = Refl
+revOnto _ [] = Refl
 revOnto xs (v :: vs)
     = rewrite revOnto (v :: xs) vs in
         rewrite appendAssociative (reverse vs) [v] xs in
@@ -641,32 +620,3 @@ revAppend (v :: vs) ns
           rewrite sym (revAppend vs ns) in
             rewrite appendAssociative (reverse ns) (reverse vs) [v] in
               Refl
-
-public export
-lemma_val_not_nil : {x : t} -> {xs : List t} -> ((x :: xs) = Prelude.Nil {a = t} -> Void)
-lemma_val_not_nil Refl impossible
-
-public export
-lemma_x_eq_xs_neq : {x : t} -> {xs : List t} -> {y : t} -> {ys : List t} -> (x = y) -> (xs = ys -> Void) -> ((x :: xs) = (y :: ys) -> Void)
-lemma_x_eq_xs_neq Refl p Refl = p Refl
-
-public export
-lemma_x_neq_xs_eq : {x : t} -> {xs : List t} -> {y : t} -> {ys : List t} -> (x = y -> Void) -> (xs = ys) -> ((x :: xs) = (y :: ys) -> Void)
-lemma_x_neq_xs_eq p Refl Refl = p Refl
-
-public export
-lemma_x_neq_xs_neq : {x : t} -> {xs : List t} -> {y : t} -> {ys : List t} -> (x = y -> Void) -> (xs = ys -> Void) -> ((x :: xs) = (y :: ys) -> Void)
-lemma_x_neq_xs_neq p p' Refl = p Refl
-
-public export
-implementation DecEq a => DecEq (List a) where
-  decEq [] [] = Yes Refl
-  decEq (x :: xs) [] = No lemma_val_not_nil
-  decEq [] (x :: xs) = No (negEqSym lemma_val_not_nil)
-  decEq (x :: xs) (y :: ys) with (decEq x y)
-    decEq (x :: xs) (x :: ys) | Yes Refl with (decEq xs ys)
-      decEq (x :: xs) (x :: xs) | (Yes Refl) | (Yes Refl) = Yes Refl
-      decEq (x :: xs) (x :: ys) | (Yes Refl) | (No p) = No (\eq => lemma_x_eq_xs_neq Refl p eq)
-    decEq (x :: xs) (y :: ys) | No p with (decEq xs ys)
-      decEq (x :: xs) (y :: xs) | (No p) | (Yes Refl) = No (\eq => lemma_x_neq_xs_eq p Refl eq)
-      decEq (x :: xs) (y :: ys) | (No p) | (No p') = No (\eq => lemma_x_neq_xs_neq p p' eq)

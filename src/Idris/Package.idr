@@ -276,6 +276,27 @@ compileMain mainn mmod exec
          compileExp (PRef replFC mainn) exec
          pure ()
 
+prepareCompilation : {auto c : Ref Ctxt Defs} ->
+                     {auto s : Ref Syn SyntaxInfo} ->
+                     {auto o : Ref ROpts REPLOpts} ->
+                     PkgDesc ->
+                     List CLOpt ->
+                     Core (List Error)
+prepareCompilation pkg opts =
+  do
+    defs <- get Ctxt
+    addDeps pkg
+
+    processOptions (options pkg)
+    preOptions opts
+
+    runScript (prebuild pkg)
+
+    let toBuild = maybe (map snd (modules pkg))
+                        (\m => snd m :: map snd (modules pkg))
+                        (mainmod pkg)
+    buildAll toBuild
+
 build : {auto c : Ref Ctxt Defs} ->
         {auto s : Ref Syn SyntaxInfo} ->
         {auto o : Ref ROpts REPLOpts} ->
@@ -283,16 +304,8 @@ build : {auto c : Ref Ctxt Defs} ->
         List CLOpt ->
         Core (List Error)
 build pkg opts
-    = do defs <- get Ctxt
-         addDeps pkg
-         processOptions (options pkg)
-         preOptions opts
-         runScript (prebuild pkg)
-         let toBuild = maybe (map snd (modules pkg))
-                             (\m => snd m :: map snd (modules pkg))
-                             (mainmod pkg)
-         [] <- buildAll toBuild
-              | errs => pure errs
+    = do [] <- prepareCompilation pkg opts
+            | errs => pure errs
 
          case executable pkg of
               Nothing => pure ()
@@ -301,6 +314,7 @@ build pkg opts
                                | Nothing => throw (GenericMsg emptyFC "No main module given")
                       let mainName = NS mainNS (UN "main")
                       compileMain mainName mainFile exec
+
          runScript (postbuild pkg)
          pure []
 
@@ -359,6 +373,21 @@ install pkg opts -- not used but might be in the future
                                (installPrefix </> name pkg)) toInstall
          coreLift $ changeDir srcdir
          runScript (postinstall pkg)
+
+-- Check package without compiling anything.
+check : {auto c : Ref Ctxt Defs} ->
+        {auto s : Ref Syn SyntaxInfo} ->
+        {auto o : Ref ROpts REPLOpts} ->
+        PkgDesc ->
+        List CLOpt ->
+        Core (List Error)
+check pkg opts =
+  do
+    [] <- prepareCompilation pkg opts
+      | errs => pure errs
+
+    runScript (postbuild pkg)
+    pure []
 
 -- Data.These.bitraverse hand specialised for Core
 bitraverseC : (a -> Core c) -> (b -> Core d) -> These a b -> Core (These c d)
@@ -450,17 +479,22 @@ getParseErrorLoc fname (LexFail (l, c, _)) = MkFC fname (l, c) (l, c)
 getParseErrorLoc fname (LitFail _) = MkFC fname (0, 0) (0, 0) -- TODO: Remove this unused case
 getParseErrorLoc fname _ = replFC
 
--- Just load the 'Main' module, if it exists, which will involve building
+-- Just load the given module, if it exists, which will involve building
 -- it if necessary
 runRepl : {auto c : Ref Ctxt Defs} ->
           {auto s : Ref Syn SyntaxInfo} ->
           {auto o : Ref ROpts REPLOpts} ->
-          PkgDesc ->
-          List CLOpt ->
+          Maybe String ->
           Core ()
-runRepl pkg opts = do
+runRepl fname = do
   u <- newRef UST initUState
   m <- newRef MD initMetadata
+  the (Core ()) $
+      case fname of
+          Nothing => pure ()
+          Just fn => do
+            errs <- loadMainFile fn
+            displayErrors errs
   repl {u} {s}
 
 
@@ -491,11 +525,15 @@ processPackage cmd file opts
                       Install => do [] <- build pkg opts
                                        | errs => coreLift (exitWith (ExitFailure 1))
                                     install pkg opts
+                      Typecheck => do
+                        [] <- check pkg opts
+                          | errs => coreLift (exitWith (ExitFailure 1))
+                        pure ()
                       Clean => clean pkg opts
                       REPL => do
                         [] <- build pkg opts
                            | errs => coreLift (exitWith (ExitFailure 1))
-                        runRepl pkg opts
+                        runRepl (map snd $ mainmod pkg)
 
 record POptsFilterResult where
   constructor MkPFR
@@ -510,6 +548,7 @@ errorMsg = unlines
   , "    --quiet"
   , "    --verbose"
   , "    --timing"
+  , "    --log <log level>"
   , "    --dumpcases <file>"
   , "    --dumplifted <file>"
   , "    --dumpvmcode <file>"
@@ -527,6 +566,7 @@ filterPackageOpts acc (Package cmd f ::xs) = filterPackageOpts (record {pkgDetai
 filterPackageOpts acc (Quiet         ::xs) = filterPackageOpts (record {oopts $= (Quiet::)}          acc) xs
 filterPackageOpts acc (Verbose       ::xs) = filterPackageOpts (record {oopts $= (Verbose::)}        acc) xs
 filterPackageOpts acc (Timing        ::xs) = filterPackageOpts (record {oopts $= (Timing::)}         acc) xs
+filterPackageOpts acc (Logging l     ::xs) = filterPackageOpts (record {oopts $= (Logging l::)}      acc) xs
 filterPackageOpts acc (DumpCases f   ::xs) = filterPackageOpts (record {oopts $= (DumpCases f::)}    acc) xs
 filterPackageOpts acc (DumpLifted f  ::xs) = filterPackageOpts (record {oopts $= (DumpLifted f::)}   acc) xs
 filterPackageOpts acc (DumpVMCode f  ::xs) = filterPackageOpts (record {oopts $= (DumpVMCode f::)}   acc) xs
@@ -586,7 +626,7 @@ findIpkg fname
         case fname of
              Nothing => pure Nothing
              Just srcpath  =>
-                do let src' = up </> srcpath 
+                do let src' = up </> srcpath
                    setSource src'
                    opts <- get ROpts
                    put ROpts (record { mainfile = Just src' } opts)

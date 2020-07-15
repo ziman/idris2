@@ -49,10 +49,10 @@ ploc (MkFC _ s e) = do
     let er = integerToNat $ cast $ fst e
     let ec = integerToNat $ cast $ snd e
     source <- lines <$> getCurrentElabSource
-    if sr == er
-       then pure $ show (sr + 1) ++ "\t" ++ fromMaybe "" (elemAt source sr)
-              ++ "\n\t" ++ repeatChar sc ' ' ++ repeatChar (ec `minus` sc) '^' ++ "\n"
-       else pure $ addLineNumbers sr $ extractRange sr er source
+    pure $ if sr == er
+              then show (sr + 1) ++ "\t" ++ fromMaybe "" (elemAt source sr)
+                   ++ "\n\t" ++ repeatChar sc ' ' ++ repeatChar (ec `minus` sc) '^' ++ "\n"
+              else addLineNumbers sr $ extractRange sr er source
   where
     extractRange : Nat -> Nat -> List a -> List a
     extractRange s e xs = take ((e `minus` s) + 1) (drop s xs)
@@ -99,7 +99,8 @@ perror (InvisibleName fc x Nothing)
 perror (BadTypeConType fc n)
     = pure $ "Return type of " ++ show n ++ " must be Type at:\n" ++ !(ploc fc)
 perror (BadDataConType fc n fam)
-    = pure $ "Return type of " ++ show n ++ " must be in " ++ show fam ++ " at:\n" ++ !(ploc fc)
+    = pure $ "Return type of " ++ show n ++ " must be in "
+                 ++ show !(toFullNames fam) ++ " at:\n" ++ !(ploc fc)
 perror (NotCovering fc n IsCovering)
     = pure $ "Internal error (Coverage of " ++ show n ++ ")"
 perror (NotCovering fc n (MissingCases cs))
@@ -162,7 +163,8 @@ perror (AllFailed ts)
   where
     pAlterror : (Maybe Name, Error) -> Core String
     pAlterror (Just n, err)
-       = pure $ "If " ++ show !(getFullName n) ++ ": " ++ !(perror err) ++ "\n"
+       = pure $ "If " ++ show !(aliasName !(getFullName n)) ++ ": "
+                      ++ !(perror err) ++ "\n"
     pAlterror (Nothing, err)
        = pure $ "Possible error:\n\t" ++ !(perror err)
 
@@ -176,9 +178,9 @@ perror (RecordTypeNeeded fc _)
 perror (NotRecordField fc fld Nothing)
     = pure $ fld ++ " is not part of a record type at:\n" ++ !(ploc fc)
 perror (NotRecordField fc fld (Just ty))
-    = pure $ "Record type " ++ show ty ++ " has no field " ++ fld ++ " at:\n" ++ !(ploc fc)
+    = pure $ "Record type " ++ show !(getFullName ty) ++ " has no field " ++ fld ++ " at:\n" ++ !(ploc fc)
 perror (NotRecordType fc ty)
-    = pure $ show ty ++ " is not a record type at:\n" ++ !(ploc fc)
+    = pure $ show !(getFullName ty) ++ " is not a record type at:\n" ++ !(ploc fc)
 perror (IncompatibleFieldUpdate fc flds)
     = pure $ "Field update " ++ showSep "->" flds ++
              " not compatible with other updates at:\n" ++ !(ploc fc)
@@ -263,7 +265,7 @@ perror (BadImplicit fc str)
 perror (BadRunElab fc env script)
     = pure $ "Bad elaborator script " ++ !(pshow env script) ++ " at:\n" ++ !(ploc fc)
 perror (GenericMsg fc str) = pure $ str ++ " at:\n" ++ !(ploc fc)
-perror (TTCError msg) = pure $ "Error in TTC file: " ++ show msg
+perror (TTCError msg) = pure $ "Error in TTC file: " ++ show msg ++ " (the most likely case is that the ./build directory in your current project contains files from a previous build of idris2 or the idris2 executable is from a different build than the installed .ttc files)"
 perror (FileErr fname err)
     = pure $ "File error in " ++ fname ++ ": " ++ show err
 perror (ParseFail _ err)

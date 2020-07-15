@@ -120,10 +120,12 @@ install-support:
 	mkdir -p ${PREFIX}/idris2-${IDRIS2_VERSION}/support/racket
 	mkdir -p ${PREFIX}/idris2-${IDRIS2_VERSION}/support/gambit
 	mkdir -p ${PREFIX}/idris2-${IDRIS2_VERSION}/support/malfunction
+	mkdir -p ${PREFIX}/idris2-${IDRIS2_VERSION}/support/js
 	install support/chez/* ${PREFIX}/idris2-${IDRIS2_VERSION}/support/chez
 	install support/racket/* ${PREFIX}/idris2-${IDRIS2_VERSION}/support/racket
 	install support/gambit/* ${PREFIX}/idris2-${IDRIS2_VERSION}/support/gambit
 	install support/malfunction/* ${PREFIX}/idris2-${IDRIS2_VERSION}/support/malfunction
+	install support/js/* ${PREFIX}/idris2-${IDRIS2_VERSION}/support/js
 	@${MAKE} -C support/c install
 
 install-libs:

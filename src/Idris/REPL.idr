@@ -4,6 +4,8 @@ import Compiler.Scheme.Chez
 import Compiler.Scheme.Racket
 import Compiler.Scheme.Gambit
 import Compiler.Malfunction
+import Compiler.ES.Node
+import Compiler.ES.Javascript
 import Compiler.Common
 
 import Core.AutoSearch
@@ -23,6 +25,7 @@ import Core.Unify
 import Parser.Unlit
 
 import Idris.Desugar
+import Idris.DocString
 import Idris.Error
 import Idris.IDEMode.CaseSplit
 import Idris.IDEMode.Commands
@@ -181,6 +184,8 @@ findCG
               Racket => pure codegenRacket
               Gambit => pure codegenGambit
               Malfunction => pure codegenMalfunction
+              Node => pure codegenNode
+              Javascript => pure codegenJavascript
               Other s => case !(getCodegen s) of
                             Just cg => pure cg
                             Nothing => do coreLift $ putStrLn ("No such code generator: " ++ s)
@@ -680,6 +685,12 @@ process (Total n)
                              tot <- getTotality replFC fn >>= toFullNames
                              pure $ (fn, tot))
                                (map fst ts)
+process (Doc n)
+    = do doc <- getDocsFor replFC n
+         pure $ Printed doc
+process (Browse ns)
+    = do doc <- getContents ns
+         pure $ Printed doc
 process (DebugInfo n)
     = do defs <- get Ctxt
          traverse_ showInfo !(lookupCtxtName n (gamma defs))
@@ -702,11 +713,11 @@ process Metavars
                                                            pure (n, gdef, args))
                                       globs
          hData <- the (Core $ List HoleData) $
-             traverse (\n_gdef_args => 
+             traverse (\n_gdef_args =>
                         -- Inference can't deal with this for now :/
                         let (n, gdef, args) = the (Name, GlobalDef, Nat) n_gdef_args in
                         holeData defs [] n args (type gdef))
-                      holesWithArgs 
+                      holesWithArgs
          pure $ FoundHoles hData
 
 process (Editing cmd)
@@ -898,7 +909,7 @@ mutual
         m ++ (makeSpace $ c2 `minus` length m) ++ r
 
       cmdInfo : (List String, CmdArg, String) -> String
-      cmdInfo (cmds, args, text) = "   " ++ col 16 12 (showSep " " cmds) (show args) text
+      cmdInfo (cmds, args, text) = " " ++ col 16 12 (showSep " " cmds) (show args) text
 
   export
   displayErrors : {auto c : Ref Ctxt Defs} ->

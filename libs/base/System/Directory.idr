@@ -11,6 +11,7 @@ support fn = "C:" ++ fn ++ ", libidris2_support"
 
 %foreign
   support "idris2_fileErrno"
+  "node:support:fileErrno,support_system_directory"
 prim_fileErrno : PrimIO Int
 
 returnError : HasIO io => io (Either FileError a)
@@ -29,14 +30,17 @@ ok x = pure (Right x)
 
 %foreign
   support "idris2_currentDirectory"
+  "node:lambda:()=>process.cwd()"
 prim_currentDir : PrimIO (Ptr String)
 
 %foreign
   support "idris2_changeDir"
+  "node:support:changeDir,support_system_directory"
 prim_changeDir : String -> PrimIO Int
 
 %foreign
   support "idris2_createDir"
+  "node:support:createDir,support_system_directory"
 prim_createDir : String -> PrimIO Int
 
 %foreign
