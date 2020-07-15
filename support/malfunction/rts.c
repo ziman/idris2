@@ -381,6 +381,7 @@ CAMLprim value ml_string_get(value src, value i)
 	CAMLreturn(Val_int(cp));
 }
 
+// useful for debugging UTF8, memory b0rkage and such
 void sanity_check(const char * msg, value s)
 {
 	const uint8_t * p = Bytes_val(s);
@@ -414,13 +415,13 @@ CAMLprim value ml_string_unpack(value src)
 
 	fst = Val_int(0);  // represents idris's Nil
 
-	const uint8_t * srcp = Bytes_val(src);
+	size_t ofs = 0;
 	size_t bytes_remaining = caml_string_length(src);
 
 	while (bytes_remaining > 0)
 	{
 		uint32_t cp;
-		const size_t cp_width = utf8_read(srcp, bytes_remaining, &cp);
+		const size_t cp_width = utf8_read(Bytes_val(src) + ofs, bytes_remaining, &cp);
 		if (cp_width == 0)
 		{
 			caml_failwith("ml_string_unpack: malformed string");
@@ -443,7 +444,7 @@ CAMLprim value ml_string_unpack(value src)
 		}
 
 		bytes_remaining -= cp_width;
-		srcp += cp_width;
+		ofs += cp_width;
 	}
 
 	CAMLreturn(fst);
