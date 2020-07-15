@@ -67,6 +67,8 @@ module String = struct
     external get : string -> int -> char = "ml_string_get"
     external unpack : string -> char idris_list = "ml_string_unpack"
     external pack : char idris_list -> string = "ml_string_pack"
+
+    let of_char (c : char) : string = String.make 1 c
 end
 
 module Bytes = struct
