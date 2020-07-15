@@ -496,7 +496,6 @@ CAMLprim value ml_string_concat(value ss)
 	size_t total_width = 0;
 	for (p = ss; Is_block(p); p = Field(p, 1))
 	{
-		sanity_check("ml_string_concat", Field(p, 0));
 		total_width += caml_string_length(Field(p, 0));
 	}
 
