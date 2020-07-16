@@ -507,9 +507,9 @@ mlfRec defs = parens $
   text "rec"
   $$ indentBlock defs
 
-generateMlf : Ref Ctxt Defs ->
-               ClosedTerm -> (outfile : String) -> Core ()
-generateMlf c tm outfile = do
+generateModules : Ref Ctxt Defs ->
+               ClosedTerm -> (outfile : String) -> Core (List String)
+generateModules c tm bld = do
   cdata <- getCompileData Cases tm
   let ndefs = namedDefs cdata
   let ctm = forget (mainExpr cdata)
@@ -529,9 +529,9 @@ generateMlf c tm outfile = do
         $$ text ""
         $$ text "; vim: ft=lisp"
         $$ text ""  -- end with a newline
-  Right () <- coreLift $ writeFile outfile code
-    | Left err => throw (FileErr outfile err)
-  pure ()
+  Right () <- coreLift $ writeFile (bld </> "Main.mlf") code
+    | Left err => throw (FileErr (bld </> "Main.mlf") err)
+  pure ["Main"]
 
 compileExpr : Ref Ctxt Defs -> (tmpDir : String) -> (outputDir : String) ->
               ClosedTerm -> (outfile : String) -> Core (Maybe String)
@@ -550,7 +550,7 @@ compileExpr c tmpDir outputDir tm outfile = do
 
   copy "Rts.ml"
   copy "rts.c"
-  generateMlf c tm (bld </> "Main.mlf")
+  modNames <- generateModules c tm bld
 
   let flags = if debug then "-g" else ""
   let cmd = unwords
@@ -563,8 +563,11 @@ compileExpr c tmpDir outputDir tm outfile = do
         , "&& ocamlfind opt -I +threads " ++ flags ++ " -i Rts.ml > Rts.mli"
         , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.mli"
         , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.ml"
-        -- Main
-        , "&& malfunction cmx Main.mlf"
+        -- MLF modules
+        , unwords
+          [ "&& malfunction cmx " ++ modName ++ ".mlf"
+          | modName <- modNames
+          ]
         -- link it all together
         , "&& ocamlfind opt -thread -package zarith -linkpkg -nodynlink "
             ++ flags ++ " rts.o libidris2_support.a Rts.cmx Main.cmx -o ../" ++ outfile
