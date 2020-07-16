@@ -753,6 +753,10 @@ generateModules c tm bld = do
   Right () <- coreLift $ writeFile (bld </> "Main.mlf") code
     | Left err => throw (FileErr (bld </> "Main.mlf") err)
 
+  -- write an empty Main.mli
+  Right () <- coreLift $ writeFile (bld </> "Main.mli") ""
+    | Left err => throw (FileErr (bld </> "Main.mli") err)
+
   pure $ moduleNames ++ [MkMN "Main"]
 
 compileExpr : Ref Ctxt Defs -> (tmpDir : String) -> (outputDir : String) ->
