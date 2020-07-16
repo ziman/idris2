@@ -76,7 +76,7 @@ void idris2_setBufferString(void* buffer, int loc, char* str) {
     }
 }
 
-int idris2_getBufferByte(void* buffer, int loc) {
+uint8_t idris2_getBufferByte(void* buffer, int loc) {
     Buffer* b = buffer;
     if (loc >= 0 && loc < b->size) {
         return b->data[loc];
@@ -124,18 +124,10 @@ char* idris2_getBufferString(void* buffer, int loc, int len) {
     return rs;
 }
 
-int idris2_readBufferDataInto(FILE* h, Buffer* buffer, int loc, int max) {
-    return fread(buffer->data + loc, sizeof(uint8_t), (size_t)max, h);
-}
-
-int idris2_readBufferData(FILE* h, char* buffer, int loc, int max) {
+size_t idris2_readBufferData(FILE* h, char* buffer, size_t loc, size_t max) {
     return fread(buffer+loc, sizeof(uint8_t), (size_t)max, h);
 }
 
-int idris2_writeBufferDataFrom(FILE* h, Buffer* buffer, int loc, int len) {
-    return fwrite(buffer->data + loc, sizeof(uint8_t), len, h);
-}
-
-int idris2_writeBufferData(FILE* h, char* buffer, int loc, int len) {
+size_t idris2_writeBufferData(FILE* h, const char* buffer, size_t loc, size_t len) {
     return fwrite(buffer+loc, sizeof(uint8_t), len, h);
 }

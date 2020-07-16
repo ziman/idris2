@@ -823,94 +823,101 @@ CAMLprim value ml_fgetc(value fptr) {
 
 CAMLprim value ml_idris2_newBuffer(value size) {
   CAMLparam1(size);
-  void * result = idris2_newBuffer(Int_val(size));
-  CAMLreturn((value) result);
+  CAMLlocal1(result);
+  result = caml_alloc_string(Int_val(size));
+  CAMLreturn(result);
 }
 
 CAMLprim value ml_idris2_freeBuffer(value buffer) {
   CAMLparam1(buffer);
-  idris2_freeBuffer((void *)buffer);
+  // nothing to do
   CAMLreturn(Val_int(0));
 }
 
 CAMLprim value ml_idris2_getBufferSize(value buffer) {
   CAMLparam1(buffer);
-  const int result = idris2_getBufferSize((void *)buffer);
+  const int result = caml_string_length(buffer);
   CAMLreturn(Val_int(result));
 }
 
 CAMLprim value ml_idris2_setBufferByte(value buffer, value loc, value val) {
   CAMLparam3(buffer, loc, val);
-  idris2_setBufferByte((void *)buffer, Int_val(loc), Int_val(val));
+  ((uint8_t *) Bytes_val(buffer))[Int_val(loc)] = (uint8_t) Int_val(val);
   CAMLreturn(Val_int(0));
 }
 
 CAMLprim value ml_idris2_setBufferInt(value buffer, value loc, value val) {
   CAMLparam3(buffer, loc, val);
-  idris2_setBufferInt((void *)buffer, Int_val(loc), Int_val(val));
+  int64_t iv = Int_val(val);
+  memcpy(Bytes_val(buffer) + Int_val(loc), &iv, sizeof(iv));
   CAMLreturn(Val_int(0));
 }
 
 CAMLprim value ml_idris2_setBufferDouble(value buffer, value loc, value val) {
   CAMLparam3(buffer, loc, val);
-  idris2_setBufferDouble((void *)buffer, Int_val(loc), Double_val(val));
+  double dv = Double_val(val);
+  memcpy(Bytes_val(buffer) + Int_val(loc), &dv, sizeof(dv));
   CAMLreturn(Val_int(0));
 }
 
 CAMLprim value ml_idris2_setBufferString(value buffer, value loc, value val) {
   CAMLparam3(buffer, loc, val);
-  idris2_setBufferString((void *) buffer, Int_val(loc), String_val(val));
+  memcpy(Bytes_val(buffer) + Int_val(loc), String_val(val), strlen(String_val(val)));
   CAMLreturn(Val_int(0));
 }
 
 CAMLprim value ml_idris2_copyBuffer(value from, value start, value len, value to, value loc) {
   CAMLparam5(from,start,len,to,loc);
-  idris2_copyBuffer((void *)from, Int_val(start), Int_val(len), (void *)to, Int_val(loc));
+  memcpy(Bytes_val(to) + Int_val(loc), Bytes_val(from) + Int_val(start), Int_val(len));
   CAMLreturn(Val_int(0));
 }
 
 CAMLprim value ml_idris2_readBufferData(value file, value buffer, value loc, value max) {
-  CAMLparam4(file, buffer, loc, max);
-  const int result = idris2_readBufferDataInto((FILE *)file, (Buffer *)buffer, Int_val(loc), Int_val(max));
-  CAMLreturn(Val_int(result));
+	CAMLparam4(file, buffer, loc, max);
+	const size_t result = fread(Bytes_val(buffer) + Int_val(loc), 1, Int_val(max), (FILE *) file);
+	CAMLreturn(Val_int(result));
 }
 
 CAMLprim value ml_idris2_writeBufferData(value file, value buffer, value loc, value len) {
-  CAMLparam4(file, buffer, loc, len);
-  const int result = idris2_writeBufferDataFrom((FILE *)file, (Buffer *)buffer, Int_val(loc), Int_val(len));
-  CAMLreturn(Val_int(result));
+	CAMLparam4(file, buffer, loc, len);
+	const size_t result = fwrite(Bytes_val(buffer) + Int_val(loc), 1, Int_val(len), (FILE *) file);
+	CAMLreturn(Val_int(result));
 }
 
 CAMLprim value ml_idris2_getBufferByte(value buffer, value loc) {
   CAMLparam2(buffer, loc);
-  const int result = idris2_getBufferByte((void *)buffer, Int_val(loc));
+  const uint8_t result = ((uint8_t *) Bytes_val(buffer))[Int_val(loc)];
   CAMLreturn(Val_int(result));
 }
 
 CAMLprim value ml_idris2_getBufferInt(value buffer, value loc) {
   CAMLparam2(buffer, loc);
-  const int result = idris2_getBufferInt((void *)buffer, Int_val(loc));
-  CAMLreturn(Val_int(result));
+  int64_t iv;
+  memcpy(&iv, Bytes_val(buffer) + Int_val(loc), sizeof(iv));
+  CAMLreturn(Val_int(iv));
 }
 
 CAMLprim value ml_idris2_getBufferDouble(value buffer, value loc) {
   CAMLparam2(buffer, loc);
   CAMLlocal1(result);
 
-  result = caml_copy_double(idris2_getBufferDouble((void *)buffer, Int_val(loc)));
+  double dv;
+  memcpy(&dv, Bytes_val(buffer) + Int_val(loc), sizeof(dv));
+  result = caml_copy_double(dv);
 
   CAMLreturn(result);
 }
 
-CAMLprim value ml_idris2_getBufferString(value buffer, value loc, value len) {
-  CAMLparam3(buffer, loc, len);
-  CAMLlocal1(result);
+CAMLprim value ml_idris2_getBufferString(value src, value ofs, value max_width) {
+  CAMLparam3(src, ofs, max_width);
+  CAMLlocal1(dst);
 
-  char * rptr = idris2_getBufferString((void *)buffer, Int_val(loc), Int_val(len));
-  result = caml_copy_string(rptr);
-  free(rptr);
+  // idris2_getBufferString uses strncpy so we have to find where the NUL terminator is
+  const size_t nbytes = strnlen(Bytes_val(src) + Int_val(ofs), Int_val(max_width));
+  dst = caml_alloc_string(nbytes);  // ocaml null-terminates all strings
+  memcpy(Bytes_val(dst), Bytes_val(src) + Int_val(ofs), nbytes);
 
-  CAMLreturn(result);
+  CAMLreturn(dst);
 }
 
 /* Idrnet */
