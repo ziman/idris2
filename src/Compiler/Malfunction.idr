@@ -384,6 +384,39 @@ unApp (NmApp fc f args) args' = unApp f (args ++ args')
 unApp f args = (f, args)
 -}
 
+-- namespaces mentioned within
+mutual
+  nsTm : NamedCExp -> SortedSet String
+  nsTm (NmLocal fc n) = SortedSet.empty
+  nsTm (NmRef fc n) = SortedSet.singleton $ mlfNS n
+  nsTm (NmLam fc n rhs) = nsTm rhs
+  nsTm (NmLet fc n val rhs) = nsTm val <+> nsTm rhs
+  nsTm (NmApp fc f args) = nsTm f <+> concatMap nsTm args
+  nsTm (NmCon fc cn tag args) = concatMap nsTm args
+  nsTm (NmForce fc rhs) = nsTm rhs
+  nsTm (NmDelay fc rhs) = nsTm rhs
+  nsTm (NmErased fc) = SortedSet.empty
+  nsTm (NmPrimVal ft x) = SortedSet.empty
+  nsTm (NmOp fc op args) = concatMap nsTm args
+  nsTm (NmExtPrim fc n args) = concatMap nsTm args
+  nsTm (NmConCase fc scrut alts mbDflt) =
+    nsTm scrut <+> concatMap nsConAlt alts <+> concatMap nsTm mbDflt
+  nsTm (NmConstCase fc scrut alts mbDflt) =
+    nsTm scrut <+> concatMap nsConstAlt alts <+> concatMap nsTm mbDflt
+  nsTm (NmCrash fc msg) = SortedSet.empty
+
+  nsConAlt : NamedConAlt -> SortedSet String
+  nsConAlt (MkNConAlt n tag args rhs) = nsTm rhs
+
+  nsConstAlt : NamedConstAlt -> SortedSet String
+  nsConstAlt (MkNConstAlt c rhs) = nsTm rhs
+
+nsDef : NamedDef -> SortedSet String
+nsDef (MkNmFun argNs rhs) = nsTm rhs
+nsDef (MkNmCon tag arity nt) = SortedSet.empty
+nsDef (MkNmForeign ccs fargs rty) = SortedSet.empty
+nsDef (MkNmError rhs) = nsTm rhs
+
 parameters (ldefs : SortedSet Name)
   mutual
     bindScrut : NamedCExp -> (Name -> Doc) -> Doc
@@ -533,6 +566,26 @@ splitByNS = StringMap.toList . foldl addOne StringMap.empty
 coreFor_ : List a -> (a -> Core ()) -> Core ()
 coreFor_ xs f = Core.traverse_ f xs
 
+toposort : List String -> List (String, SortedSet String) -> Either (List String) (List String)
+toposort acc [] = Right (reverse acc)
+toposort acc xs =
+  case splitRoots [] [] xs of
+    ([], nonRoots) => Left $ map fst nonRoots  -- a cycle somewhere
+    (roots, nonRoots) => toposort (roots ++ acc) $ map (rmDep $ SortedSet.fromList roots) nonRoots
+  where
+    splitRoots
+        : List String -> List (String, SortedSet String)
+        -> List (String, SortedSet String)
+        -> (List String, List (String, SortedSet String))
+    splitRoots roots nonRoots [] = (roots, nonRoots)
+    splitRoots roots nonRoots ((ns, deps) :: rest) =
+      if SortedSet.null deps
+        then splitRoots (ns :: roots) nonRoots rest
+        else splitRoots roots ((ns, deps) :: nonRoots) rest
+
+    rmDep : SortedSet String -> (String, SortedSet String) -> (String, SortedSet String)
+    rmDep roots (ns, deps) = (ns, SortedSet.difference deps roots)
+
 generateModules : Ref Ctxt Defs ->
                ClosedTerm -> (outfile : String) -> Core (List String)
 generateModules c tm bld = do
@@ -541,6 +594,12 @@ generateModules c tm bld = do
   let ctm = forget (mainExpr cdata)
   let ldefs = lazyDefs ndefs
   let defsByNS = splitByNS ndefs
+  let defDepsRaw = [StringMap.singleton (mlfNS n) (nsDef d) | (n, fc, d) <- ndefs]
+  let defDeps = foldl (StringMap.mergeWith SortedSet.union) StringMap.empty defDepsRaw
+
+  moduleOrder <- case toposort [] (StringMap.toList defDeps) of
+    Left nss => throw $ InternalError ("toposort: cycle somewhere in " ++ show nss)
+    Right order => pure order
 
   -- generate the modules
   coreFor_ (splitByNS ndefs) $ \(modName, defs) => do
@@ -578,7 +637,7 @@ generateModules c tm bld = do
   Right () <- coreLift $ writeFile (bld </> "Main.mlf") code
     | Left err => throw (FileErr (bld </> "Main.mlf") err)
 
-  pure $ "Main" :: map fst defsByNS
+  pure $ moduleOrder ++ ["Main"]
 
 compileExpr : Ref Ctxt Defs -> (tmpDir : String) -> (outputDir : String) ->
               ClosedTerm -> (outfile : String) -> Core (Maybe String)
