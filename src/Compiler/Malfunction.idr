@@ -631,15 +631,17 @@ tarjan deps = loop initialState (StringMap.keys deps)
         loop : TarjanState -> List String -> TarjanState
         loop ts [] = ts
         loop ts (w :: ws) =
-          case StringMap.lookup w ts.vertices of
-            Nothing => let ts' = strongConnect ts w in
-              case StringMap.lookup w ts'.vertices of
-                Nothing => record { impossibleHappened = True } ts'
-                Just wtv => record { vertices $= StringMap.adjust v record{ lowlink $= min wtv.lowlink } } ts'
+          loop (
+            case StringMap.lookup w ts.vertices of
+              Nothing => let ts' = strongConnect ts w in
+                case StringMap.lookup w ts'.vertices of
+                  Nothing => record { impossibleHappened = True } ts'
+                  Just wtv => record { vertices $= StringMap.adjust v record{ lowlink $= min wtv.lowlink } } ts'
 
-            Just wtv => case wtv.inStack of
-              False => ts  -- nothing to do
-              True => record { vertices $= StringMap.adjust v record{ lowlink $= min wtv.index } } ts
+              Just wtv => case wtv.inStack of
+                False => ts  -- nothing to do
+                True => record { vertices $= StringMap.adjust v record{ lowlink $= min wtv.index } } ts
+          ) ws
 
         ts' : TarjanState
         ts' = record {
@@ -649,7 +651,10 @@ tarjan deps = loop initialState (StringMap.keys deps)
           } ts
 
     loop : TarjanState -> List String -> List (List String)
-    loop ts [] = ts.components
+    loop ts [] =
+      if ts.impossibleHappened
+        then []
+        else ts.components
     loop ts (v :: vs) =
       case StringMap.lookup v ts.vertices of
         Just _ => loop ts vs  -- done, skip
@@ -669,8 +674,6 @@ generateModules c tm bld = do
   let defDepsRaw = [StringMap.singleton (mlfNS n) (SortedSet.delete (mlfNS n) (nsDef d)) | (n, fc, d) <- ndefs]
   let defDeps = foldl (StringMap.mergeWith SortedSet.union) StringMap.empty defDepsRaw
   let components = reverse $ tarjan defDeps  -- tarjan generates reverse toposort
-
-  coreLift $ printLn components
 
   -- map each module name / namespace
   -- to the representative from its component
@@ -700,7 +703,7 @@ generateModules c tm bld = do
             $$ indent (
                  mlfRec defsMlf
               $$ text ""
-              $$ parens (text "export")
+              $$ parens (text "export" $$ indent (vcat [mlfVar n | (n, _, _) <- defs]))
               )
             )
             $$ text ""
