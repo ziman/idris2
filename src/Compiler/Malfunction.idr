@@ -193,6 +193,18 @@ mlfOp (EQ DoubleType) [x,y] = sexp [text "==.f64", x,y]
 mlfOp (GTE DoubleType) [x,y] = sexp [text ">=.f64", x,y]
 mlfOp (GT DoubleType) [x,y] = sexp [text ">.f64", x,y]
 
+mlfOp DoubleExp [x] = mlfLibCall "Float.exp" [x]
+mlfOp DoubleLog [x] = mlfLibCall "Float.log" [x]  -- should this be Float.log10?
+mlfOp DoubleSin [x] = mlfLibCall "Float.sin" [x]
+mlfOp DoubleCos [x] = mlfLibCall "Float.cos" [x]
+mlfOp DoubleTan [x] = mlfLibCall "Float.tan" [x]
+mlfOp DoubleASin [x] = mlfLibCall "Float.asin" [x]
+mlfOp DoubleACos [x] = mlfLibCall "Float.acos" [x]
+mlfOp DoubleATan [x] = mlfLibCall "Float.atan" [x]
+mlfOp DoubleSqrt [x] = mlfLibCall "Float.sqrt" [x]
+mlfOp DoubleFloor [x] = mlfLibCall "Float.floor" [x]
+mlfOp DoubleCeiling [x] = mlfLibCall "Float.ceil" [x]
+
 mlfOp (Cast IntegerType DoubleType) [x] = sexp [text "convert.ibig.f64", x]
 mlfOp (Cast DoubleType IntegerType) [x] = sexp [text "convert.f64.ibig", x]
 mlfOp (Cast IntType DoubleType) [x] = sexp [text "convert.int.f64", x]
