@@ -113,9 +113,12 @@ mlfNS : Name -> String
 mlfNS (NS ns n) = "Mod_" ++ concat (intersperse "_" $ reverse ns)
 mlfNS n = "Misc"
 
-mlfGlobalNS : Name -> Doc
-mlfGlobalNS n =
-  sexp [text "global", text ("$" ++ mlfNS n), mlfVar n]
+mlfGlobalNS : StringMap String -> Name -> Doc
+mlfGlobalNS nsMap n =
+  let mns = mlfNS n
+    in case StringMap.lookup mns nsMap of
+      Nothing => mlfError $ "mlfGlobalNS: impossible: could not find " ++ show mns
+      Just reprNS => sexp [text "global", text ("$" ++ reprNS), mlfVar n]
 
 mlfLet : Name -> Doc -> Doc -> Doc
 mlfLet n val rhs = parens $
@@ -417,7 +420,7 @@ nsDef (MkNmCon tag arity nt) = SortedSet.empty
 nsDef (MkNmForeign ccs fargs rty) = SortedSet.empty
 nsDef (MkNmError rhs) = nsTm rhs
 
-parameters (ldefs : SortedSet Name)
+parameters (ldefs : SortedSet Name, nsMapping : StringMap String)
   mutual
     bindScrut : NamedCExp -> (Name -> Doc) -> Doc
     bindScrut (NmLocal _ n) rhs = rhs n
@@ -454,9 +457,9 @@ parameters (ldefs : SortedSet Name)
     mlfTm : NamedCExp -> Doc
     mlfTm (NmLocal fc n) = mlfVar n
     mlfTm (NmRef fc n) =
-      if contains n ldefs
-        then mlfForce (mlfGlobalNS n)
-        else mlfGlobalNS n
+        if contains n ldefs
+          then mlfForce (mlfGlobalNS nsMapping n)
+          else mlfGlobalNS nsMapping n
     mlfTm (NmLam fc n rhs) = mlfLam [n] (mlfTm rhs)
     mlfTm (NmLet fc n val rhs) = mlfLet n (mlfTm val) (mlfTm rhs)
     mlfTm (NmApp fc f args) =
@@ -563,9 +566,6 @@ splitByNS = StringMap.toList . foldl addOne StringMap.empty
         (StringMap.singleton (mlfNS n) [def])
         nss
 
-coreFor_ : List a -> (a -> Core ()) -> Core ()
-coreFor_ xs f = Core.traverse_ f xs
-
 -- https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm#The_algorithm_in_pseudocode
 record TarjanVertex where
   constructor TV
@@ -642,6 +642,9 @@ tarjan deps = loop initialState (StringMap.keys deps)
         Just _ => loop ts vs  -- done, skip
         Nothing => loop (strongConnect ts v) vs
 
+coreFor : List a -> (a -> Core b) -> Core (List b)
+coreFor xs f = Core.traverse f xs
+
 generateModules : Ref Ctxt Defs ->
                ClosedTerm -> (outfile : String) -> Core (List String)
 generateModules c tm bld = do
@@ -649,32 +652,51 @@ generateModules c tm bld = do
   let ndefs = namedDefs cdata
   let ctm = forget (mainExpr cdata)
   let ldefs = lazyDefs ndefs
-  let defsByNS = splitByNS ndefs
+  let defsByNS = StringMap.fromList $ splitByNS ndefs
   let defDepsRaw = [StringMap.singleton (mlfNS n) (SortedSet.delete (mlfNS n) (nsDef d)) | (n, fc, d) <- ndefs]
   let defDeps = foldl (StringMap.mergeWith SortedSet.union) StringMap.empty defDepsRaw
+  let components = tarjan defDeps
 
-  -- generate the modules
-  coreFor_ (splitByNS ndefs) $ \(modName, defs) => do
-    let defsMlf = map (mlfDef ldefs) defs
-    mainMlf <- pure $ mlfTm ldefs ctm
-    let code = render " " $ parens (
-          text "module"
-          $$ indent (
-               mlfRec defsMlf
-            $$ text ""
-            $$ parens (text "export")
-            )
+  -- map each module name / namespace
+  -- to the representative from its component
+  let nsMapping =
+        foldl
+          (\nm, modNames => case modNames of
+            [] => nm
+            mn :: mns =>
+              let repr = foldl min mn mns
+                in foldl (\nm, modName => StringMap.insert modName repr nm)
+                    nm
+                    modNames
           )
-          $$ text ""
-          $$ text "; vim: ft=lisp"
-          $$ text ""  -- end with a newline
-    let fname = bld </> modName <.> "mlf"
-    Right () <- coreLift $ writeFile fname code
-      | Left err => throw (FileErr fname err)
-    pure ()
+          StringMap.empty
+          components
+
+  -- generate one module per strongly connected component
+  moduleNames <- coreFor components $ \modNames => case modNames of
+    [] => throw $ InternalError "empty connected component"
+    mn :: mns => do
+      let repr = foldl min mn mns
+      let defs = concatMap (\modName => fromMaybe [] $ StringMap.lookup modName defsByNS) modNames
+      let defsMlf = map (mlfDef ldefs nsMapping) defs
+      let code = render " " $ parens (
+            text "module"
+            $$ indent (
+                 mlfRec defsMlf
+              $$ text ""
+              $$ parens (text "export")
+              )
+            )
+            $$ text ""
+            $$ text "; vim: ft=lisp"
+            $$ text ""  -- end with a newline
+      let fname = bld </> repr <.> "mlf"
+      Right () <- coreLift $ writeFile fname code
+        | Left err => throw (FileErr fname err)
+      pure repr  -- return the name of the ML module that represents the group of Idris modules
 
   -- generate the main module
-  mainMlf <- pure $ mlfTm ldefs ctm
+  mainMlf <- pure $ mlfTm ldefs nsMapping ctm
   let code = render " " $ parens (
         text "module"
         $$ indent (
@@ -689,7 +711,7 @@ generateModules c tm bld = do
   Right () <- coreLift $ writeFile (bld </> "Main.mlf") code
     | Left err => throw (FileErr (bld </> "Main.mlf") err)
 
-  pure ?allModules
+  pure $ moduleNames ++ ["Main"]
 
 compileExpr : Ref Ctxt Defs -> (tmpDir : String) -> (outputDir : String) ->
               ClosedTerm -> (outfile : String) -> Core (Maybe String)
