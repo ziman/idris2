@@ -17,6 +17,7 @@ import Utils.Pretty
 import Data.List
 import Data.Maybe
 import Data.NameMap
+import Data.StringMap
 import Data.Strings
 import Data.Vect
 import Data.SortedSet
@@ -98,20 +99,49 @@ sanitise = pack . concatMap sanitise' . unpack
     sanitise' c =
       if san c
         then [c]
-        else '-' :: unpack (show $ ord c) ++ ['-']
+        else '_' :: unpack (show $ ord c) ++ ['_']
 
 mlfName : Name -> Doc
 mlfName (MN n i) = text (sanitise n) <+> show i
 mlfName n = text . sanitise . schName $ n
 
-mlfVar : Name -> Doc
-mlfVar n = text "$" <+> mlfName n
+-- ML identifiers can't start with capital letters
+mlfGlobalName : Name -> Doc
+mlfGlobalName n = text "idr_" <+> mlfName n
+
+mlfLocalVar : Name -> Doc
+mlfLocalVar n = text "$" <+> mlfName n
+
+mlfGlobalVar : Name -> Doc
+mlfGlobalVar n = text "$" <+> mlfGlobalName n
+
+-- returns MLF module name
+mlfNS : Name -> String
+mlfNS (NS ns n) = "Mod_" ++ concat (intersperse "_" $ reverse ns)
+mlfNS n = "Misc"
+
+record ModuleName where
+  constructor MkMN
+  name : String
+
+Eq ModuleName where
+  MkMN x == MkMN y = x == y
+
+mlfGlobalNS : StringMap ModuleName -> ModuleName -> Name -> Doc
+mlfGlobalNS nsMap curModuleName n =
+  let mns = mlfNS n
+    in case StringMap.lookup mns nsMap of
+      Nothing => mlfError $ "mlfGlobalNS: impossible: could not find " ++ show mns
+      Just targetMod =>
+        if targetMod == curModuleName
+          then mlfGlobalVar n  -- within-module reference
+          else sexp [text "global", text ("$" ++ targetMod.name), mlfGlobalVar n]
 
 mlfLet : Name -> Doc -> Doc -> Doc
 mlfLet n val rhs = parens $
   text "let"
   $$ indentBlock
-    [ sexp [mlfVar n, val]
+    [ sexp [mlfLocalVar n, val]
     , rhs
     ]
 
@@ -122,7 +152,7 @@ mlfLam : List Name -> Doc -> Doc
 mlfLam [] rhs = mlfLazy rhs
 mlfLam args rhs =
   parens $
-    text "lambda" <++> sexp (map mlfVar args)
+    text "lambda" <++> sexp (map mlfLocalVar args)
     $$ indent rhs
 
 mlfForce : Doc -> Doc
@@ -247,25 +277,25 @@ mlfOp op args = mlfError $ "unimplemented primop: " ++ show op
 mlfExtPrim : Name -> Doc
 mlfExtPrim (NS _ (UN "prim__newArray")) =
   mlfLam [UN "_ty", UN "n", UN "x", UN "_world"] $
-    sexp [text "makevec", mlfVar (UN "n"), mlfVar (UN "x")]
+    sexp [text "makevec", mlfLocalVar (UN "n"), mlfLocalVar (UN "x")]
 mlfExtPrim (NS _ (UN "prim__arrayGet")) =
   mlfLam [UN "_ty", UN "arr", UN "i", UN "_world"] $
-    sexp [text "load", mlfVar (UN "arr"), mlfVar (UN "i")]
+    sexp [text "load", mlfLocalVar (UN "arr"), mlfLocalVar (UN "i")]
 mlfExtPrim (NS _ (UN "prim__arraySet")) =
   mlfLam [UN "_ty", UN "arr", UN "i", UN "x", UN "_world"] $
-    sexp [text "store", mlfVar (UN "arr"), mlfVar (UN "i"), mlfVar (UN "x")]
+    sexp [text "store", mlfLocalVar (UN "arr"), mlfLocalVar (UN "i"), mlfLocalVar (UN "x")]
 mlfExtPrim (NS _ (UN "prim__newIORef")) =
   mlfLam [UN "_ty", UN "x", UN "_world"] $
-    sexp [text "makevec", show 1, mlfVar (UN "x")]
+    sexp [text "makevec", show 1, mlfLocalVar (UN "x")]
 mlfExtPrim (NS _ (UN "prim__readIORef")) =
   mlfLam [UN "_ty", UN "ref", UN "_world"] $
-    sexp [text "load", mlfVar (UN "ref"), show 0]
+    sexp [text "load", mlfLocalVar (UN "ref"), show 0]
 mlfExtPrim (NS _ (UN "prim__writeIORef")) =
   mlfLam [UN "_ty", UN "ref", UN "x", UN "_world"] $
-    sexp [text "store", mlfVar (UN "ref"), show 0, mlfVar (UN "x")]
+    sexp [text "store", mlfLocalVar (UN "ref"), show 0, mlfLocalVar (UN "x")]
 mlfExtPrim (NS _ (UN "prim__schemeCall")) =
   mlfLam [UN "_rTy", UN "fn", UN "_args", UN "_world"] $
-    mlfLibCall "Stdlib.failwith" [mlfVar (UN "fn")]
+    mlfLibCall "Stdlib.failwith" [mlfLocalVar (UN "fn")]
 mlfExtPrim (NS _ (UN "prim__codegen")) = mlfString "malfunction"
 mlfExtPrim (NS _ (UN "prim__os")) = mlfGlobal "Rts.System.os_name"
 mlfExtPrim n = mlfError $ "unimplemented external primitive: " ++ show n
@@ -339,7 +369,7 @@ mlfConstDflt : Doc -> Doc
 mlfConstDflt rhs = sexp [text "_", rhs]
 
 mlfField : Name -> Int -> Doc
-mlfField n i = sexp [text "field", show i, mlfVar n]
+mlfField n i = sexp [text "field", show i, mlfLocalVar n]
 
 number : Int -> List a -> List (Int, a)
 number i [] = []
@@ -350,7 +380,7 @@ bindFieldProjs scrutN [] rhs = rhs
 bindFieldProjs scrutN ns rhs = parens $
   text "let"
   $$ indent (
-    vcat [sexp [mlfVar n, mlfField scrutN i] | (i, n) <- number 0 ns]
+    vcat [sexp [mlfLocalVar n, mlfField scrutN i] | (i, n) <- number 0 ns]
     $$ rhs
   )
 
@@ -374,7 +404,40 @@ unApp (NmApp fc f args) args' = unApp f (args ++ args')
 unApp f args = (f, args)
 -}
 
-parameters (ldefs : SortedSet Name)
+-- namespaces mentioned within
+mutual
+  nsTm : NamedCExp -> SortedSet String
+  nsTm (NmLocal fc n) = SortedSet.empty
+  nsTm (NmRef fc n) = SortedSet.singleton $ mlfNS n
+  nsTm (NmLam fc n rhs) = nsTm rhs
+  nsTm (NmLet fc n val rhs) = nsTm val <+> nsTm rhs
+  nsTm (NmApp fc f args) = nsTm f <+> concatMap nsTm args
+  nsTm (NmCon fc cn tag args) = concatMap nsTm args
+  nsTm (NmForce fc rhs) = nsTm rhs
+  nsTm (NmDelay fc rhs) = nsTm rhs
+  nsTm (NmErased fc) = SortedSet.empty
+  nsTm (NmPrimVal ft x) = SortedSet.empty
+  nsTm (NmOp fc op args) = concatMap nsTm args
+  nsTm (NmExtPrim fc n args) = concatMap nsTm args
+  nsTm (NmConCase fc scrut alts mbDflt) =
+    nsTm scrut <+> concatMap nsConAlt alts <+> concatMap nsTm mbDflt
+  nsTm (NmConstCase fc scrut alts mbDflt) =
+    nsTm scrut <+> concatMap nsConstAlt alts <+> concatMap nsTm mbDflt
+  nsTm (NmCrash fc msg) = SortedSet.empty
+
+  nsConAlt : NamedConAlt -> SortedSet String
+  nsConAlt (MkNConAlt n tag args rhs) = nsTm rhs
+
+  nsConstAlt : NamedConstAlt -> SortedSet String
+  nsConstAlt (MkNConstAlt c rhs) = nsTm rhs
+
+nsDef : NamedDef -> SortedSet String
+nsDef (MkNmFun argNs rhs) = nsTm rhs
+nsDef (MkNmCon tag arity nt) = SortedSet.empty
+nsDef (MkNmForeign ccs fargs rty) = SortedSet.empty
+nsDef (MkNmError rhs) = nsTm rhs
+
+parameters (ldefs : SortedSet Name, nsMapping : StringMap ModuleName, curModuleName : ModuleName)
   mutual
     bindScrut : NamedCExp -> (Name -> Doc) -> Doc
     bindScrut (NmLocal _ n) rhs = rhs n
@@ -386,7 +449,7 @@ parameters (ldefs : SortedSet Name)
     mlfEqChain scrutN Nothing [] = mlfError "impossible eq chain"
     mlfEqChain scrutN (Just dflt) [] = dflt
     mlfEqChain scrutN mbDflt (MkNConstAlt c rhs :: alts) = parens $
-      text "if" <++> mlfConstEqCheck (mlfVar scrutN) c
+      text "if" <++> mlfConstEqCheck (mlfLocalVar scrutN) c
       $$ indent (
         mlfTm rhs
         $$ mlfEqChain scrutN mbDflt alts
@@ -409,11 +472,11 @@ parameters (ldefs : SortedSet Name)
         Nothing => Nothing
 
     mlfTm : NamedCExp -> Doc
-    mlfTm (NmLocal fc n) = mlfVar n
+    mlfTm (NmLocal fc n) = mlfLocalVar n
     mlfTm (NmRef fc n) =
-      if contains n ldefs
-        then mlfForce (mlfVar n)
-        else mlfVar n
+        if contains n ldefs
+          then mlfForce (mlfGlobalNS nsMapping curModuleName n)
+          else mlfGlobalNS nsMapping curModuleName n
     mlfTm (NmLam fc n rhs) = mlfLam [n] (mlfTm rhs)
     mlfTm (NmLet fc n val rhs) = mlfLet n (mlfTm val) (mlfTm rhs)
     mlfTm (NmApp fc f args) =
@@ -435,7 +498,7 @@ parameters (ldefs : SortedSet Name)
     mlfTm (NmConCase fc scrut alts mbDflt) =
       bindScrut scrut $ \scrutN =>
         mlfSwitch
-          (mlfVar scrutN)
+          (mlfLocalVar scrutN)
           (map (mlfConAlt scrutN) alts)
           (mlfConDflt . mlfTm <$> mbDflt)
     mlfTm (NmConstCase fc scrut alts mbDflt) =
@@ -454,7 +517,7 @@ parameters (ldefs : SortedSet Name)
     mlfLam args (mlfTm rhs)
 
   mlfBody (MkNmCon mbTag arity mbNewtype) =
-      mlfLam args (mlfBlock mbTag $ map mlfVar args)
+      mlfLam args (mlfBlock mbTag $ map mlfLocalVar args)
     where
       args : List Name
       args = [UN $ "arg" ++ show i | i <- [0..cast {to = Int} arity-1]]
@@ -462,7 +525,7 @@ parameters (ldefs : SortedSet Name)
   mlfBody (MkNmForeign ccs args cty) =
     mlfLam (map fst lamArgs) $
       case ccLibFun ccs of
-        Just fn => mlfLibCall fn (map mlfVar mlArgs)
+        Just fn => mlfLibCall fn (map mlfLocalVar mlArgs)
         Nothing =>
           mlfError $ "unimplemented foreign: " ++ show (MkNmForeign ccs args cty)
     where
@@ -491,7 +554,7 @@ parameters (ldefs : SortedSet Name)
 
   mlfDef : (Name, FC, NamedDef) -> Doc
   mlfDef (n, fc, body) =
-    parens (mlfVar n $$ indent (mlfBody body))
+    parens (mlfGlobalVar n $$ indent (mlfBody body))
     $$ text ""
 
 lazyDefs : List (Name, FC, NamedDef) -> SortedSet Name
@@ -507,21 +570,179 @@ mlfRec defs = parens $
   text "rec"
   $$ indentBlock defs
 
+splitByNS : List (Name, FC, NamedDef) -> List (String, List (Name, FC, NamedDef))
+splitByNS = StringMap.toList . foldl addOne StringMap.empty
+  where
+    addOne
+      : StringMap (List (Name, FC, NamedDef))
+      -> (Name, FC, NamedDef)
+      -> StringMap (List (Name, FC, NamedDef))
+    addOne nss def@(n, fc, nd) =
+      StringMap.mergeWith
+        (++)
+        (StringMap.singleton (mlfNS n) [def])
+        nss
+
+-- https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm#The_algorithm_in_pseudocode
+record TarjanVertex where
+  constructor TV
+  index : Int
+  lowlink : Int
+  inStack : Bool
+
+record TarjanState where
+  constructor TS
+  vertices : StringMap TarjanVertex
+  stack : List String
+  nextIndex : Int
+  components : List (List String)
+  impossibleHappened : Bool
+
+tarjan : StringMap (SortedSet String) -> List (List String)
+tarjan deps = loop initialState (StringMap.keys deps)
+  where
+    initialState : TarjanState
+    initialState =
+      TS
+        StringMap.empty
+        []
+        0
+        []
+        False
+
+    strongConnect : TarjanState -> String -> TarjanState
+    strongConnect ts v =
+        let ts'' = case StringMap.lookup v deps of
+              Nothing => ts'  -- no edges
+              Just edgeSet => loop ts' (SortedSet.toList edgeSet)
+          in case StringMap.lookup v ts''.vertices of
+              Nothing => record { impossibleHappened = True } ts''
+              Just vtv =>
+                if vtv.index == vtv.lowlink
+                  then createComponent ts'' v []
+                  else ts''
+      where
+        createComponent : TarjanState -> String -> List String -> TarjanState
+        createComponent ts v acc =
+          case ts.stack of
+            [] => record { impossibleHappened = True } ts
+            w :: ws =>
+              let ts' = record {
+                      vertices $= StringMap.adjust w record{ inStack = False },
+                      stack = ws
+                    } ts
+                in if w == v
+                  then record { components $= ((v :: acc) ::) } ts'  -- that's it
+                  else createComponent ts' v (w :: acc)
+
+        loop : TarjanState -> List String -> TarjanState
+        loop ts [] = ts
+        loop ts (w :: ws) =
+          loop (
+            case StringMap.lookup w ts.vertices of
+              Nothing => let ts' = strongConnect ts w in
+                case StringMap.lookup w ts'.vertices of
+                  Nothing => record { impossibleHappened = True } ts'
+                  Just wtv => record { vertices $= StringMap.adjust v record{ lowlink $= min wtv.lowlink } } ts'
+
+              Just wtv => case wtv.inStack of
+                False => ts  -- nothing to do
+                True => record { vertices $= StringMap.adjust v record{ lowlink $= min wtv.index } } ts
+          ) ws
+
+        ts' : TarjanState
+        ts' = record {
+            vertices  $= StringMap.insert v (TV ts.nextIndex ts.nextIndex True),
+            stack     $= (v ::),
+            nextIndex $= (1+)
+          } ts
+
+    loop : TarjanState -> List String -> List (List String)
+    loop ts [] =
+      if ts.impossibleHappened
+        then []
+        else ts.components
+    loop ts (v :: vs) =
+      case StringMap.lookup v ts.vertices of
+        Just _ => loop ts vs  -- done, skip
+        Nothing => loop (strongConnect ts v) vs
+
+coreFor : List a -> (a -> Core b) -> Core (List b)
+coreFor xs f = Core.traverse f xs
+
 generateModules : Ref Ctxt Defs ->
-               ClosedTerm -> (outfile : String) -> Core (List String)
+               ClosedTerm -> (outfile : String) -> Core (List ModuleName)
 generateModules c tm bld = do
   cdata <- getCompileData Cases tm
   let ndefs = namedDefs cdata
   let ctm = forget (mainExpr cdata)
   let ldefs = lazyDefs ndefs
+  let defsByNS = StringMap.fromList $ splitByNS ndefs
+  let defDepsRaw = [StringMap.singleton (mlfNS n) (SortedSet.delete (mlfNS n) (nsDef d)) | (n, fc, d) <- ndefs]
+  let defDeps = foldl (StringMap.mergeWith SortedSet.union) StringMap.empty defDepsRaw
+  let components = reverse $ tarjan defDeps  -- tarjan generates reverse toposort
 
-  defsMlf <- traverse (pure . mlfDef ldefs) ndefs
-  mainMlf <- pure $ mlfTm ldefs ctm
+  -- map each module name / namespace
+  -- to the representative from its component
+  let nsMapping =
+        foldl
+          (\nm, modNames => case modNames of
+            [] => nm
+            mn :: mns =>
+              let mlMod = MkMN (foldl min mn mns)
+                in foldl (\nm, modName => StringMap.insert modName mlMod nm)
+                    nm
+                    modNames
+          )
+          StringMap.empty
+          components
+
+  -- generate one module per strongly connected component
+  -- start with Builtins, work up to modules with many dependencies
+  moduleNames <- coreFor components $ \modNames => case modNames of
+    [] => throw $ InternalError "empty connected component"
+    mn :: mns => do
+      let mlMod = MkMN (foldl min mn mns)
+      let defs = concatMap (\modName => fromMaybe [] $ StringMap.lookup modName defsByNS) modNames
+      let defsMlf = map (mlfDef ldefs nsMapping mlMod) defs
+      let code = render " " $ parens (
+            text "module"
+            $$ indent (
+                 mlfRec defsMlf
+              $$ text ""
+              $$ parens (
+                text "export"
+                $$ indent (vcat [mlfGlobalVar n | (n, _, _) <- defs])
+                )
+              )
+            )
+            $$ text ""
+            $$ text "; vim: ft=lisp"
+            $$ text ""  -- end with a newline
+
+      -- write the MLF file
+      let fname = bld </> mlMod.name <.> "mlf"
+      Right () <- coreLift $ writeFile fname code
+        | Left err => throw (FileErr fname err)
+
+      -- write the MLI file
+      let mliCode = render " " $
+            vcat
+              [ text "val" <++> mlfGlobalName n <++> text ": 'a"
+              | (n, _, _) <- defs
+              ]
+      let fname = bld </> mlMod.name <.> "mli"
+      Right () <- coreLift $ writeFile fname mliCode
+        | Left err => throw (FileErr fname err)
+
+      pure mlMod  -- return the name of the ML module that represents the group of Idris modules
+
+  -- generate the main module
+  mainMlf <- pure $ mlfTm ldefs nsMapping (MkMN "Main") ctm
   let code = render " " $ parens (
         text "module"
         $$ indent (
-             mlfRec defsMlf
-          $$ parens (text "_" <++> mainMlf)
+          parens (text "_" <++> mainMlf)
           $$ text ""
           $$ parens (text "export")
           )
@@ -531,7 +752,12 @@ generateModules c tm bld = do
         $$ text ""  -- end with a newline
   Right () <- coreLift $ writeFile (bld </> "Main.mlf") code
     | Left err => throw (FileErr (bld </> "Main.mlf") err)
-  pure ["Main"]
+
+  -- write an empty Main.mli
+  Right () <- coreLift $ writeFile (bld </> "Main.mli") ""
+    | Left err => throw (FileErr (bld </> "Main.mli") err)
+
+  pure $ moduleNames ++ [MkMN "Main"]
 
 compileExpr : Ref Ctxt Defs -> (tmpDir : String) -> (outputDir : String) ->
               ClosedTerm -> (outfile : String) -> Core (Maybe String)
@@ -565,14 +791,18 @@ compileExpr c tmpDir outputDir tm outfile = do
         , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.ml"
         -- MLF modules
         , unwords
-          [ "&& malfunction cmx " ++ modName ++ ".mlf"
+          [    "&& ocamlfind opt -I +threads " ++ flags ++ " -c " ++ modName.name ++ ".mli "
+            ++ "&& malfunction cmx " ++ modName.name ++ ".mlf"
           | modName <- modNames
           ]
         -- link it all together
         , "&& ocamlfind opt -thread -package zarith -linkpkg -nodynlink "
-            ++ flags ++ " rts.o libidris2_support.a Rts.cmx Main.cmx -o ../" ++ outfile
+            ++ flags ++ " rts.o libidris2_support.a Rts.cmx "
+            ++ unwords [modName.name ++ ".cmx" | modName <- modNames]
+            ++ " -o ../" ++ outfile
         , ")"
         ]
+  -- coreLift $ putStrLn cmd
   ok <- coreLift $ system cmd
   if ok == 0
     then pure (Just (outputDir </> outfile))
