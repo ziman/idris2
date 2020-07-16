@@ -108,6 +108,15 @@ mlfName n = text . sanitise . schName $ n
 mlfVar : Name -> Doc
 mlfVar n = text "$" <+> mlfName n
 
+-- returns MLF module name
+mlfNS : Name -> String
+mlfNS (NS ns n) = "Mod_" ++ concat (intersperse "_" $ reverse ns)
+mlfNS n = "Misc"
+
+mlfGlobalNS : Name -> Doc
+mlfGlobalNS n =
+  sexp [text "global", text ("$" ++ mlfNS n), mlfVar n]
+
 mlfLet : Name -> Doc -> Doc -> Doc
 mlfLet n val rhs = parens $
   text "let"
@@ -413,8 +422,8 @@ parameters (ldefs : SortedSet Name)
     mlfTm (NmLocal fc n) = mlfVar n
     mlfTm (NmRef fc n) =
       if contains n ldefs
-        then mlfForce (mlfVar n)
-        else mlfVar n
+        then mlfForce (mlfGlobalNS n)
+        else mlfGlobalNS n
     mlfTm (NmLam fc n rhs) = mlfLam [n] (mlfTm rhs)
     mlfTm (NmLet fc n val rhs) = mlfLet n (mlfTm val) (mlfTm rhs)
     mlfTm (NmApp fc f args) =
@@ -508,11 +517,6 @@ mlfRec defs = parens $
   text "rec"
   $$ indentBlock defs
 
--- returns (module name, mlfName)
-mlfNameNS : Name -> (String, Doc)
-mlfNameNS (NS ns n) = ("Mod_" ++ concat (intersperse "_" $ reverse ns), mlfName n)
-mlfNameNS n = ("Misc", mlfName n)
-
 splitByNS : List (Name, FC, NamedDef) -> List (String, List (Name, FC, NamedDef))
 splitByNS = StringMap.toList . foldl addOne StringMap.empty
   where
@@ -521,11 +525,10 @@ splitByNS = StringMap.toList . foldl addOne StringMap.empty
       -> (Name, FC, NamedDef)
       -> StringMap (List (Name, FC, NamedDef))
     addOne nss def@(n, fc, nd) =
-      let (modName, _) = mlfNameNS n
-        in StringMap.mergeWith
-            (++)
-            (StringMap.singleton modName [def])
-            nss
+      StringMap.mergeWith
+        (++)
+        (StringMap.singleton (mlfNS n) [def])
+        nss
 
 coreFor_ : List a -> (a -> Core ()) -> Core ()
 coreFor_ xs f = Core.traverse_ f xs
