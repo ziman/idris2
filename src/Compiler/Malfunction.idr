@@ -17,6 +17,7 @@ import Utils.Pretty
 import Data.List
 import Data.Maybe
 import Data.NameMap
+import Data.StringMap
 import Data.Strings
 import Data.Vect
 import Data.SortedSet
@@ -507,6 +508,28 @@ mlfRec defs = parens $
   text "rec"
   $$ indentBlock defs
 
+-- returns (module name, mlfName)
+mlfNameNS : Name -> (String, Doc)
+mlfNameNS (NS ns n) = ("Mod_" ++ concat (intersperse "_" $ reverse ns), mlfName n)
+mlfNameNS n = ("Misc", mlfName n)
+
+splitByNS : List (Name, FC, NamedDef) -> List (String, List (Name, FC, NamedDef))
+splitByNS = StringMap.toList . foldl addOne StringMap.empty
+  where
+    addOne
+      : StringMap (List (Name, FC, NamedDef))
+      -> (Name, FC, NamedDef)
+      -> StringMap (List (Name, FC, NamedDef))
+    addOne nss def@(n, fc, nd) =
+      let (modName, _) = mlfNameNS n
+        in StringMap.mergeWith
+            (++)
+            (StringMap.singleton modName [def])
+            nss
+
+coreFor_ : List a -> (a -> Core ()) -> Core ()
+coreFor_ xs f = Core.traverse_ f xs
+
 generateModules : Ref Ctxt Defs ->
                ClosedTerm -> (outfile : String) -> Core (List String)
 generateModules c tm bld = do
@@ -514,14 +537,34 @@ generateModules c tm bld = do
   let ndefs = namedDefs cdata
   let ctm = forget (mainExpr cdata)
   let ldefs = lazyDefs ndefs
+  let defsByNS = splitByNS ndefs
 
-  defsMlf <- traverse (pure . mlfDef ldefs) ndefs
+  -- generate the modules
+  coreFor_ (splitByNS ndefs) $ \(modName, defs) => do
+    let defsMlf = map (mlfDef ldefs) defs
+    mainMlf <- pure $ mlfTm ldefs ctm
+    let code = render " " $ parens (
+          text "module"
+          $$ indent (
+               mlfRec defsMlf
+            $$ text ""
+            $$ parens (text "export")
+            )
+          )
+          $$ text ""
+          $$ text "; vim: ft=lisp"
+          $$ text ""  -- end with a newline
+    let fname = bld </> modName <.> "mlf"
+    Right () <- coreLift $ writeFile fname code
+      | Left err => throw (FileErr fname err)
+    pure ()
+
+  -- generate the main module
   mainMlf <- pure $ mlfTm ldefs ctm
   let code = render " " $ parens (
         text "module"
         $$ indent (
-             mlfRec defsMlf
-          $$ parens (text "_" <++> mainMlf)
+          parens (text "_" <++> mainMlf)
           $$ text ""
           $$ parens (text "export")
           )
@@ -531,7 +574,8 @@ generateModules c tm bld = do
         $$ text ""  -- end with a newline
   Right () <- coreLift $ writeFile (bld </> "Main.mlf") code
     | Left err => throw (FileErr (bld </> "Main.mlf") err)
-  pure ["Main"]
+
+  pure $ "Main" :: map fst defsByNS
 
 compileExpr : Ref Ctxt Defs -> (tmpDir : String) -> (outputDir : String) ->
               ClosedTerm -> (outfile : String) -> Core (Maybe String)
