@@ -596,7 +596,7 @@ tarjan deps = loop initialState (StringMap.keys deps)
     strongConnect : TarjanState -> String -> TarjanState
     strongConnect ts v =
         let ts'' = case StringMap.lookup v deps of
-              Nothing => ts'
+              Nothing => ts'  -- no edges
               Just edgeSet => loop ts' (SortedSet.toList edgeSet)
           in case StringMap.lookup v ts''.vertices of
               Nothing => record { impossibleHappened = True } ts''
@@ -610,13 +610,13 @@ tarjan deps = loop initialState (StringMap.keys deps)
           case ts.stack of
             [] => record { impossibleHappened = True } ts
             w :: ws =>
-              createComponent
-                (record {
-                    vertices $= StringMap.adjust w record{ inStack = False },
-                    stack = ws
-                  } ts)
-                v
-                (w :: acc)
+              let ts' = record {
+                      vertices $= StringMap.adjust w record{ inStack = False },
+                      stack = ws
+                    } ts
+                in if w == v
+                  then record { components $= ((v :: acc) ::) } ts'  -- that's it
+                  else createComponent ts' v (w :: acc)
 
         loop : TarjanState -> List String -> TarjanState
         loop ts [] = ts
