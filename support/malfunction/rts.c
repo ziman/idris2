@@ -536,12 +536,6 @@ CAMLprim value inspect(value ty, value x)
 	CAMLreturn(Val_int(0));  // return unit
 }
 
-CAMLprim value idris_nil(value unit)
-{
-  CAMLparam1(unit);
-  CAMLreturn (Val_int(0));
-}
-
 CAMLprim value ml_idris2_getStr(value unit)
 {
 	CAMLparam1(unit);
