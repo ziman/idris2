@@ -113,15 +113,22 @@ mlfNS : Name -> String
 mlfNS (NS ns n) = "Mod_" ++ concat (intersperse "_" $ reverse ns)
 mlfNS n = "Misc"
 
-mlfGlobalNS : StringMap String -> String -> Name -> Doc
-mlfGlobalNS nsMap curMLModule n =
+record ModuleName where
+  constructor MkMN
+  name : String
+
+Eq ModuleName where
+  MkMN x == MkMN y = x == y
+
+mlfGlobalNS : StringMap ModuleName -> ModuleName -> Name -> Doc
+mlfGlobalNS nsMap curModuleName n =
   let mns = mlfNS n
     in case StringMap.lookup mns nsMap of
       Nothing => mlfError $ "mlfGlobalNS: impossible: could not find " ++ show mns
-      Just reprNS =>
-        if reprNS == curMLModule
+      Just targetMod =>
+        if targetMod == curModuleName
           then mlfVar n  -- within-module reference
-          else sexp [text "global", text ("$" ++ reprNS), mlfVar n]
+          else sexp [text "global", text ("$" ++ targetMod.name), mlfVar n]
 
 mlfLet : Name -> Doc -> Doc -> Doc
 mlfLet n val rhs = parens $
@@ -423,7 +430,7 @@ nsDef (MkNmCon tag arity nt) = SortedSet.empty
 nsDef (MkNmForeign ccs fargs rty) = SortedSet.empty
 nsDef (MkNmError rhs) = nsTm rhs
 
-parameters (ldefs : SortedSet Name, nsMapping : StringMap String, curMLModule : String)
+parameters (ldefs : SortedSet Name, nsMapping : StringMap ModuleName, curModuleName : ModuleName)
   mutual
     bindScrut : NamedCExp -> (Name -> Doc) -> Doc
     bindScrut (NmLocal _ n) rhs = rhs n
@@ -461,8 +468,8 @@ parameters (ldefs : SortedSet Name, nsMapping : StringMap String, curMLModule : 
     mlfTm (NmLocal fc n) = mlfVar n
     mlfTm (NmRef fc n) =
         if contains n ldefs
-          then mlfForce (mlfGlobalNS nsMapping curMLModule n)
-          else mlfGlobalNS nsMapping curMLModule n
+          then mlfForce (mlfGlobalNS nsMapping curModuleName n)
+          else mlfGlobalNS nsMapping curModuleName n
     mlfTm (NmLam fc n rhs) = mlfLam [n] (mlfTm rhs)
     mlfTm (NmLet fc n val rhs) = mlfLet n (mlfTm val) (mlfTm rhs)
     mlfTm (NmApp fc f args) =
@@ -652,7 +659,7 @@ coreFor : List a -> (a -> Core b) -> Core (List b)
 coreFor xs f = Core.traverse f xs
 
 generateModules : Ref Ctxt Defs ->
-               ClosedTerm -> (outfile : String) -> Core (List String)
+               ClosedTerm -> (outfile : String) -> Core (List ModuleName)
 generateModules c tm bld = do
   cdata <- getCompileData Cases tm
   let ndefs = namedDefs cdata
@@ -663,7 +670,7 @@ generateModules c tm bld = do
   let defDeps = foldl (StringMap.mergeWith SortedSet.union) StringMap.empty defDepsRaw
   let components = reverse $ tarjan defDeps  -- tarjan generates reverse toposort
 
-  -- coreLift $ printLn components
+  coreLift $ printLn components
 
   -- map each module name / namespace
   -- to the representative from its component
@@ -672,8 +679,8 @@ generateModules c tm bld = do
           (\nm, modNames => case modNames of
             [] => nm
             mn :: mns =>
-              let repr = foldl min mn mns
-                in foldl (\nm, modName => StringMap.insert modName repr nm)
+              let mlMod = MkMN (foldl min mn mns)
+                in foldl (\nm, modName => StringMap.insert modName mlMod nm)
                     nm
                     modNames
           )
@@ -685,9 +692,9 @@ generateModules c tm bld = do
   moduleNames <- coreFor components $ \modNames => case modNames of
     [] => throw $ InternalError "empty connected component"
     mn :: mns => do
-      let repr = foldl min mn mns
+      let mlMod = MkMN (foldl min mn mns)
       let defs = concatMap (\modName => fromMaybe [] $ StringMap.lookup modName defsByNS) modNames
-      let defsMlf = map (mlfDef ldefs nsMapping repr) defs
+      let defsMlf = map (mlfDef ldefs nsMapping mlMod) defs
       let code = render " " $ parens (
             text "module"
             $$ indent (
@@ -699,13 +706,13 @@ generateModules c tm bld = do
             $$ text ""
             $$ text "; vim: ft=lisp"
             $$ text ""  -- end with a newline
-      let fname = bld </> repr <.> "mlf"
+      let fname = bld </> mlMod.name <.> "mlf"
       Right () <- coreLift $ writeFile fname code
         | Left err => throw (FileErr fname err)
-      pure repr  -- return the name of the ML module that represents the group of Idris modules
+      pure mlMod  -- return the name of the ML module that represents the group of Idris modules
 
   -- generate the main module
-  mainMlf <- pure $ mlfTm ldefs nsMapping "Main" ctm
+  mainMlf <- pure $ mlfTm ldefs nsMapping (MkMN "Main") ctm
   let code = render " " $ parens (
         text "module"
         $$ indent (
@@ -720,7 +727,7 @@ generateModules c tm bld = do
   Right () <- coreLift $ writeFile (bld </> "Main.mlf") code
     | Left err => throw (FileErr (bld </> "Main.mlf") err)
 
-  pure $ moduleNames ++ ["Main"]
+  pure $ moduleNames ++ [MkMN "Main"]
 
 compileExpr : Ref Ctxt Defs -> (tmpDir : String) -> (outputDir : String) ->
               ClosedTerm -> (outfile : String) -> Core (Maybe String)
@@ -754,17 +761,17 @@ compileExpr c tmpDir outputDir tm outfile = do
         , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.ml"
         -- MLF modules
         , unwords
-          [ "&& malfunction cmx " ++ modName ++ ".mlf"
+          [ "&& malfunction cmx " ++ modName.name ++ ".mlf"
           | modName <- modNames
           ]
         -- link it all together
         , "&& ocamlfind opt -thread -package zarith -linkpkg -nodynlink "
             ++ flags ++ " rts.o libidris2_support.a Rts.cmx "
-            ++ unwords [modName ++ ".cmx" | modName <- modNames]
+            ++ unwords [modName.name ++ ".cmx" | modName <- modNames]
             ++ " Main.cmx -o ../" ++ outfile
         , ")"
         ]
-  -- coreLift $ putStrLn cmd
+  coreLift $ putStrLn cmd
   ok <- coreLift $ system cmd
   if ok == 0
     then pure (Just (outputDir </> outfile))
