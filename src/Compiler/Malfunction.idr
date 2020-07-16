@@ -582,7 +582,7 @@ record TarjanState where
   impossibleHappened : Bool
 
 tarjan : StringMap (SortedSet String) -> List (List String)
-tarjan deps = loop (TS StringMap.empty [] 0) (StringMap.keys deps)
+tarjan deps = loop initialState (StringMap.keys deps)
   where
     initialState : TarjanState
     initialState =
@@ -590,6 +590,7 @@ tarjan deps = loop (TS StringMap.empty [] 0) (StringMap.keys deps)
         StringMap.empty
         []
         0
+        []
         False
 
     strongConnect : TarjanState -> String -> TarjanState
@@ -597,7 +598,7 @@ tarjan deps = loop (TS StringMap.empty [] 0) (StringMap.keys deps)
         let ts'' = case StringMap.lookup v deps of
               Nothing => ts'
               Just edgeSet => loop ts' (SortedSet.toList edgeSet)
-          in case StringMap.lookup v ts'' of
+          in case StringMap.lookup v ts''.vertices of
               Nothing => record { impossibleHappened = True } ts''
               Just vtv =>
                 if vtv.index == vtv.lowlink
@@ -621,17 +622,17 @@ tarjan deps = loop (TS StringMap.empty [] 0) (StringMap.keys deps)
             Nothing => let ts' = strongConnect ts w in
               case StringMap.lookup w ts'.vertices of
                 Nothing => record { impossibleHappened = True } ts'
-                Just wtv => StringMap.adjust v record{ lowlink $= min wtv.lowlink } ts'
+                Just wtv => record { vertices $= StringMap.adjust v record{ lowlink $= min wtv.lowlink } } ts'
 
             Just wtv => case wtv.inStack of
               False => ts  -- nothing to do
-              True => StringMap.adjust v record{ lowlink $= min wtv.index } ts
+              True => record { vertices $= StringMap.adjust v record{ lowlink $= min wtv.index } } ts
 
         ts' : TarjanState
         ts' = record {
             vertices  $= StringMap.insert v (TV ts.nextIndex ts.nextIndex True),
             stack     $= (v ::),
-            nextIndex $= (1+),
+            nextIndex $= (1+)
           } ts
 
     loop : TarjanState -> List String -> List (List String)
