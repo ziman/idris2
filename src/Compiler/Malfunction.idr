@@ -113,12 +113,15 @@ mlfNS : Name -> String
 mlfNS (NS ns n) = "Mod_" ++ concat (intersperse "_" $ reverse ns)
 mlfNS n = "Misc"
 
-mlfGlobalNS : StringMap String -> Name -> Doc
-mlfGlobalNS nsMap n =
+mlfGlobalNS : StringMap String -> String -> Name -> Doc
+mlfGlobalNS nsMap curMLModule n =
   let mns = mlfNS n
     in case StringMap.lookup mns nsMap of
       Nothing => mlfError $ "mlfGlobalNS: impossible: could not find " ++ show mns
-      Just reprNS => sexp [text "global", text ("$" ++ reprNS), mlfVar n]
+      Just reprNS =>
+        if reprNS == curMLModule
+          then mlfVar n  -- within-module reference
+          else sexp [text "global", text ("$" ++ reprNS), mlfVar n]
 
 mlfLet : Name -> Doc -> Doc -> Doc
 mlfLet n val rhs = parens $
@@ -420,7 +423,7 @@ nsDef (MkNmCon tag arity nt) = SortedSet.empty
 nsDef (MkNmForeign ccs fargs rty) = SortedSet.empty
 nsDef (MkNmError rhs) = nsTm rhs
 
-parameters (ldefs : SortedSet Name, nsMapping : StringMap String)
+parameters (ldefs : SortedSet Name, nsMapping : StringMap String, curMLModule : String)
   mutual
     bindScrut : NamedCExp -> (Name -> Doc) -> Doc
     bindScrut (NmLocal _ n) rhs = rhs n
@@ -458,8 +461,8 @@ parameters (ldefs : SortedSet Name, nsMapping : StringMap String)
     mlfTm (NmLocal fc n) = mlfVar n
     mlfTm (NmRef fc n) =
         if contains n ldefs
-          then mlfForce (mlfGlobalNS nsMapping n)
-          else mlfGlobalNS nsMapping n
+          then mlfForce (mlfGlobalNS nsMapping curMLModule n)
+          else mlfGlobalNS nsMapping curMLModule n
     mlfTm (NmLam fc n rhs) = mlfLam [n] (mlfTm rhs)
     mlfTm (NmLet fc n val rhs) = mlfLet n (mlfTm val) (mlfTm rhs)
     mlfTm (NmApp fc f args) =
@@ -684,7 +687,7 @@ generateModules c tm bld = do
     mn :: mns => do
       let repr = foldl min mn mns
       let defs = concatMap (\modName => fromMaybe [] $ StringMap.lookup modName defsByNS) modNames
-      let defsMlf = map (mlfDef ldefs nsMapping) defs
+      let defsMlf = map (mlfDef ldefs nsMapping repr) defs
       let code = render " " $ parens (
             text "module"
             $$ indent (
@@ -702,7 +705,7 @@ generateModules c tm bld = do
       pure repr  -- return the name of the ML module that represents the group of Idris modules
 
   -- generate the main module
-  mainMlf <- pure $ mlfTm ldefs nsMapping ctm
+  mainMlf <- pure $ mlfTm ldefs nsMapping "Main" ctm
   let code = render " " $ parens (
         text "module"
         $$ indent (
