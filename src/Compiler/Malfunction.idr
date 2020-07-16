@@ -180,19 +180,20 @@ mlfOp (EQ IntegerType) [x,y] = sexp [text "==.ibig", x,y]
 mlfOp (GTE IntegerType) [x,y] = sexp [text ">=.ibig", x,y]
 mlfOp (GT IntegerType) [x,y] = sexp [text ">.ibig", x,y]
 
+mlfOp (Cast IntegerType DoubleType) [x] = sexp [text "convert.ibig.f64", x]
+mlfOp (Cast DoubleType IntegerType) [x] = sexp [text "convert.f64.ibig", x]
+mlfOp (Cast IntType DoubleType) [x] = sexp [text "convert.int.f64", x]
+mlfOp (Cast DoubleType IntType) [x] = sexp [text "convert.f64.int", x]
 mlfOp (Cast IntegerType IntType) [x] = sexp [text "convert.ibig.int", x]
 mlfOp (Cast IntType IntegerType) [x] = sexp [text "convert.int.ibig", x]
 mlfOp (Cast IntegerType CharType) [x] = sexp [text "convert.ibig.int", x]
 mlfOp (Cast CharType IntegerType) [x] = sexp [text "convert.int.ibig", x]
 mlfOp (Cast CharType IntType) [x] = x
 mlfOp (Cast IntType CharType) [x] = x
-
 mlfOp (Cast IntegerType StringType) [x] = mlfLibCall "Z.to_string" [x]
 mlfOp (Cast IntType StringType) [x] = mlfLibCall "Stdlib.string_of_int" [x]
-
 mlfOp (Cast StringType IntegerType) [x] = mlfLibCall "Z.of_string" [x]
 mlfOp (Cast StringType IntType) [x] = mlfLibCall "Stdlib.int_of_string" [x]
-
 mlfOp (Cast CharType StringType) [x] = mlfLibCall "Rts.String.of_char" [x]
 mlfOp (Cast StringType CharType) [x] = mlfLibCall "Rts.String.head" [x]
 
