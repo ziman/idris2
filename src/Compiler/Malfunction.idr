@@ -658,7 +658,9 @@ generateModules c tm bld = do
   let defsByNS = StringMap.fromList $ splitByNS ndefs
   let defDepsRaw = [StringMap.singleton (mlfNS n) (SortedSet.delete (mlfNS n) (nsDef d)) | (n, fc, d) <- ndefs]
   let defDeps = foldl (StringMap.mergeWith SortedSet.union) StringMap.empty defDepsRaw
-  let components = tarjan defDeps
+  let components = reverse $ tarjan defDeps  -- tarjan generates reverse toposort
+
+  -- coreLift $ printLn components
 
   -- map each module name / namespace
   -- to the representative from its component
@@ -676,6 +678,7 @@ generateModules c tm bld = do
           components
 
   -- generate one module per strongly connected component
+  -- start with Builtins, work up to modules with many dependencies
   moduleNames <- coreFor components $ \modNames => case modNames of
     [] => throw $ InternalError "empty connected component"
     mn :: mns => do
@@ -753,9 +756,12 @@ compileExpr c tmpDir outputDir tm outfile = do
           ]
         -- link it all together
         , "&& ocamlfind opt -thread -package zarith -linkpkg -nodynlink "
-            ++ flags ++ " rts.o libidris2_support.a Rts.cmx Main.cmx -o ../" ++ outfile
+            ++ flags ++ " rts.o libidris2_support.a Rts.cmx "
+            ++ unwords [modName ++ ".cmx" | modName <- modNames]
+            ++ " Main.cmx -o ../" ++ outfile
         , ")"
         ]
+  -- coreLift $ putStrLn cmd
   ok <- coreLift $ system cmd
   if ok == 0
     then pure (Just (outputDir </> outfile))
