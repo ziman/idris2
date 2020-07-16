@@ -566,25 +566,80 @@ splitByNS = StringMap.toList . foldl addOne StringMap.empty
 coreFor_ : List a -> (a -> Core ()) -> Core ()
 coreFor_ xs f = Core.traverse_ f xs
 
-toposort : List String -> List (String, SortedSet String) -> Either (List (String, List String)) (List String)
-toposort acc [] = Right (reverse acc)
-toposort acc xs =
-  case splitRoots [] [] xs of
-    ([], nonRoots) => Left [(ns, SortedSet.toList deps) | (ns, deps) <- nonRoots]  -- a cycle somewhere
-    (roots, nonRoots) => toposort (roots ++ acc) $ map (rmDep $ SortedSet.fromList roots) nonRoots
-  where
-    splitRoots
-        : List String -> List (String, SortedSet String)
-        -> List (String, SortedSet String)
-        -> (List String, List (String, SortedSet String))
-    splitRoots roots nonRoots [] = (roots, nonRoots)
-    splitRoots roots nonRoots ((ns, deps) :: rest) =
-      if SortedSet.null deps
-        then splitRoots (ns :: roots) nonRoots rest
-        else splitRoots roots ((ns, deps) :: nonRoots) rest
+-- https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm#The_algorithm_in_pseudocode
+record TarjanVertex where
+  constructor TV
+  index : Int
+  lowlink : Int
+  inStack : Bool
 
-    rmDep : SortedSet String -> (String, SortedSet String) -> (String, SortedSet String)
-    rmDep roots (ns, deps) = (ns, SortedSet.difference deps roots)
+record TarjanState where
+  constructor TS
+  vertices : StringMap TarjanVertex
+  stack : List String
+  nextIndex : Int
+  components : List (List String)
+  impossibleHappened : Bool
+
+tarjan : StringMap (SortedSet String) -> List (List String)
+tarjan deps = loop (TS StringMap.empty [] 0) (StringMap.keys deps)
+  where
+    initialState : TarjanState
+    initialState =
+      TS
+        StringMap.empty
+        []
+        0
+        False
+
+    strongConnect : TarjanState -> String -> TarjanState
+    strongConnect ts v =
+        let ts'' = case StringMap.lookup v deps of
+              Nothing => ts'
+              Just edgeSet => loop ts' (SortedSet.toList edgeSet)
+          in case StringMap.lookup v ts'' of
+              Nothing => record { impossibleHappened = True } ts''
+              Just vtv =>
+                if vtv.index == vtv.lowlink
+                  then createComponent ts'' v []
+                  else ts''
+      where
+        createComponent : TarjanState -> String -> List String -> TarjanState
+        createComponent ts v acc =
+          case ts.stack of
+            [] => record { impossibleHappened = True } ts
+            w :: ws =>
+              createComponent
+                (record { vertices $= StringMap.adjust w record{ inStack = False } } ts)
+                v
+                (w :: acc)
+
+        loop : TarjanState -> List String -> TarjanState
+        loop ts [] = ts
+        loop ts (w :: ws) =
+          case StringMap.lookup w ts.vertices of
+            Nothing => let ts' = strongConnect ts w in
+              case StringMap.lookup w ts'.vertices of
+                Nothing => record { impossibleHappened = True } ts'
+                Just wtv => StringMap.adjust v record{ lowlink $= min wtv.lowlink } ts'
+
+            Just wtv => case wtv.inStack of
+              False => ts  -- nothing to do
+              True => StringMap.adjust v record{ lowlink $= min wtv.index } ts
+
+        ts' : TarjanState
+        ts' = record {
+            vertices  $= StringMap.insert v (TV ts.nextIndex ts.nextIndex True),
+            stack     $= (v ::),
+            nextIndex $= (1+),
+          } ts
+
+    loop : TarjanState -> List String -> List (List String)
+    loop ts [] = ts.components
+    loop ts (v :: vs) =
+      case StringMap.lookup v ts.vertices of
+        Just _ => loop ts vs  -- done, skip
+        Nothing => loop (strongConnect ts v) vs
 
 generateModules : Ref Ctxt Defs ->
                ClosedTerm -> (outfile : String) -> Core (List String)
@@ -596,10 +651,6 @@ generateModules c tm bld = do
   let defsByNS = splitByNS ndefs
   let defDepsRaw = [StringMap.singleton (mlfNS n) (SortedSet.delete (mlfNS n) (nsDef d)) | (n, fc, d) <- ndefs]
   let defDeps = foldl (StringMap.mergeWith SortedSet.union) StringMap.empty defDepsRaw
-
-  moduleOrder <- case toposort [] (StringMap.toList defDeps) of
-    Left nss => throw $ InternalError ("toposort: cycle somewhere in " ++ show nss)
-    Right order => pure order
 
   -- generate the modules
   coreFor_ (splitByNS ndefs) $ \(modName, defs) => do
@@ -637,7 +688,7 @@ generateModules c tm bld = do
   Right () <- coreLift $ writeFile (bld </> "Main.mlf") code
     | Left err => throw (FileErr (bld </> "Main.mlf") err)
 
-  pure $ moduleOrder ++ ["Main"]
+  pure ?allModules
 
 compileExpr : Ref Ctxt Defs -> (tmpDir : String) -> (outputDir : String) ->
               ClosedTerm -> (outfile : String) -> Core (Maybe String)
