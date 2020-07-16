@@ -244,47 +244,6 @@ mlfOp BelieveMe [_, _, x] = x
 
 mlfOp op args = mlfError $ "unimplemented primop: " ++ show op
 
-{-
-mlfOp (Add ty) = ?rhsOp_1
-mlfOp (Sub ty) = ?rhsOp_2
-mlfOp (Mul ty) = ?rhsOp_3
-mlfOp (Div ty) = ?rhsOp_4
-mlfOp (Mod ty) = ?rhsOp_5
-mlfOp (Neg ty) = ?rhsOp_6
-mlfOp (ShiftL ty) = ?rhsOp_7
-mlfOp (ShiftR ty) = ?rhsOp_8
-mlfOp (BAnd ty) = ?rhsOp_9
-mlfOp (BOr ty) = ?rhsOp_10
-mlfOp (BXOr ty) = ?rhsOp_11
-mlfOp (LT ty) = ?rhsOp_12
-mlfOp (LTE ty) = ?rhsOp_13
-mlfOp (EQ ty) = ?rhsOp_14
-mlfOp (GTE ty) = ?rhsOp_15
-mlfOp (GT ty) = ?rhsOp_16
-mlfOp StrLength = ?rhsOp_17
-mlfOp StrHead = ?rhsOp_18
-mlfOp StrTail = ?rhsOp_19
-mlfOp StrIndex = ?rhsOp_20
-mlfOp StrCons = ?rhsOp_21
-mlfOp StrAppend = ?rhsOp_22
-mlfOp StrReverse = ?rhsOp_23
-mlfOp StrSubstr = ?rhsOp_24
-mlfOp DoubleExp = ?rhsOp_25
-mlfOp DoubleLog = ?rhsOp_26
-mlfOp DoubleSin = ?rhsOp_27
-mlfOp DoubleCos = ?rhsOp_28
-mlfOp DoubleTan = ?rhsOp_29
-mlfOp DoubleASin = ?rhsOp_30
-mlfOp DoubleACos = ?rhsOp_31
-mlfOp DoubleATan = ?rhsOp_32
-mlfOp DoubleSqrt = ?rhsOp_33
-mlfOp DoubleFloor = ?rhsOp_34
-mlfOp DoubleCeiling = ?rhsOp_35
-mlfOp (Cast x y) = ?rhsOp_36
-mlfOp BelieveMe = ?rhsOp_37
-mlfOp Crash = ?rhsOp_38
--}
-
 mlfExtPrim : Name -> Doc
 mlfExtPrim (NS _ (UN "prim__newArray")) =
   mlfLam [UN "_ty", UN "n", UN "x", UN "_world"] $
