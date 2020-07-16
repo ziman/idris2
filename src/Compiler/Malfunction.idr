@@ -611,7 +611,10 @@ tarjan deps = loop initialState (StringMap.keys deps)
             [] => record { impossibleHappened = True } ts
             w :: ws =>
               createComponent
-                (record { vertices $= StringMap.adjust w record{ inStack = False } } ts)
+                (record {
+                    vertices $= StringMap.adjust w record{ inStack = False },
+                    stack = ws
+                  } ts)
                 v
                 (w :: acc)
 
