@@ -99,7 +99,7 @@ sanitise = pack . concatMap sanitise' . unpack
     sanitise' c =
       if san c
         then [c]
-        else '-' :: unpack (show $ ord c) ++ ['-']
+        else '_' :: unpack (show $ ord c) ++ ['_']
 
 mlfName : Name -> Doc
 mlfName (MN n i) = text (sanitise n) <+> show i
@@ -700,15 +700,31 @@ generateModules c tm bld = do
             $$ indent (
                  mlfRec defsMlf
               $$ text ""
-              $$ parens (text "export")
+              $$ parens (
+                text "export"
+                $$ indent (vcat [mlfVar n | (n, _, _) <- defs])
+                )
               )
             )
             $$ text ""
             $$ text "; vim: ft=lisp"
             $$ text ""  -- end with a newline
+
+      -- write the MLF file
       let fname = bld </> mlMod.name <.> "mlf"
       Right () <- coreLift $ writeFile fname code
         | Left err => throw (FileErr fname err)
+
+      -- write the MLI file
+      let mliCode = render " " $
+            vcat
+              [ text "val" <++> mlfName n <++> text ": 'a"
+              | (n, _, _) <- defs
+              ]
+      let fname = bld </> mlMod.name <.> "mli"
+      Right () <- coreLift $ writeFile fname mliCode
+        | Left err => throw (FileErr fname err)
+
       pure mlMod  -- return the name of the ML module that represents the group of Idris modules
 
   -- generate the main module
@@ -761,14 +777,15 @@ compileExpr c tmpDir outputDir tm outfile = do
         , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.ml"
         -- MLF modules
         , unwords
-          [ "&& malfunction cmx " ++ modName.name ++ ".mlf"
+          [    "&& ocamlfind opt -I +threads " ++ flags ++ " -c " ++ modName.name ++ ".mli "
+            ++ "&& malfunction cmx " ++ modName.name ++ ".mlf"
           | modName <- modNames
           ]
         -- link it all together
         , "&& ocamlfind opt -thread -package zarith -linkpkg -nodynlink "
             ++ flags ++ " rts.o libidris2_support.a Rts.cmx "
             ++ unwords [modName.name ++ ".cmx" | modName <- modNames]
-            ++ " Main.cmx -o ../" ++ outfile
+            ++ " -o ../" ++ outfile
         , ")"
         ]
   coreLift $ putStrLn cmd
