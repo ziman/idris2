@@ -566,11 +566,11 @@ splitByNS = StringMap.toList . foldl addOne StringMap.empty
 coreFor_ : List a -> (a -> Core ()) -> Core ()
 coreFor_ xs f = Core.traverse_ f xs
 
-toposort : List String -> List (String, SortedSet String) -> Either (List String) (List String)
+toposort : List String -> List (String, SortedSet String) -> Either (List (String, List String)) (List String)
 toposort acc [] = Right (reverse acc)
 toposort acc xs =
   case splitRoots [] [] xs of
-    ([], nonRoots) => Left $ map fst nonRoots  -- a cycle somewhere
+    ([], nonRoots) => Left [(ns, SortedSet.toList deps) | (ns, deps) <- nonRoots]  -- a cycle somewhere
     (roots, nonRoots) => toposort (roots ++ acc) $ map (rmDep $ SortedSet.fromList roots) nonRoots
   where
     splitRoots
@@ -594,7 +594,7 @@ generateModules c tm bld = do
   let ctm = forget (mainExpr cdata)
   let ldefs = lazyDefs ndefs
   let defsByNS = splitByNS ndefs
-  let defDepsRaw = [StringMap.singleton (mlfNS n) (nsDef d) | (n, fc, d) <- ndefs]
+  let defDepsRaw = [StringMap.singleton (mlfNS n) (SortedSet.delete (mlfNS n) (nsDef d)) | (n, fc, d) <- ndefs]
   let defDeps = foldl (StringMap.mergeWith SortedSet.union) StringMap.empty defDepsRaw
 
   moduleOrder <- case toposort [] (StringMap.toList defDeps) of
