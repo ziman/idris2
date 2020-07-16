@@ -105,8 +105,15 @@ mlfName : Name -> Doc
 mlfName (MN n i) = text (sanitise n) <+> show i
 mlfName n = text . sanitise . schName $ n
 
-mlfVar : Name -> Doc
-mlfVar n = text "$" <+> mlfName n
+-- ML identifiers can't start with capital letters
+mlfGlobalName : Name -> Doc
+mlfGlobalName n = text "idr_" <+> mlfName n
+
+mlfLocalVar : Name -> Doc
+mlfLocalVar n = text "$" <+> mlfName n
+
+mlfGlobalVar : Name -> Doc
+mlfGlobalVar n = text "$" <+> mlfGlobalName n
 
 -- returns MLF module name
 mlfNS : Name -> String
@@ -127,14 +134,14 @@ mlfGlobalNS nsMap curModuleName n =
       Nothing => mlfError $ "mlfGlobalNS: impossible: could not find " ++ show mns
       Just targetMod =>
         if targetMod == curModuleName
-          then mlfVar n  -- within-module reference
-          else sexp [text "global", text ("$" ++ targetMod.name), mlfVar n]
+          then mlfGlobalVar n  -- within-module reference
+          else sexp [text "global", text ("$" ++ targetMod.name), mlfGlobalVar n]
 
 mlfLet : Name -> Doc -> Doc -> Doc
 mlfLet n val rhs = parens $
   text "let"
   $$ indentBlock
-    [ sexp [mlfVar n, val]
+    [ sexp [mlfLocalVar n, val]
     , rhs
     ]
 
@@ -145,7 +152,7 @@ mlfLam : List Name -> Doc -> Doc
 mlfLam [] rhs = mlfLazy rhs
 mlfLam args rhs =
   parens $
-    text "lambda" <++> sexp (map mlfVar args)
+    text "lambda" <++> sexp (map mlfLocalVar args)
     $$ indent rhs
 
 mlfForce : Doc -> Doc
@@ -270,25 +277,25 @@ mlfOp op args = mlfError $ "unimplemented primop: " ++ show op
 mlfExtPrim : Name -> Doc
 mlfExtPrim (NS _ (UN "prim__newArray")) =
   mlfLam [UN "_ty", UN "n", UN "x", UN "_world"] $
-    sexp [text "makevec", mlfVar (UN "n"), mlfVar (UN "x")]
+    sexp [text "makevec", mlfLocalVar (UN "n"), mlfLocalVar (UN "x")]
 mlfExtPrim (NS _ (UN "prim__arrayGet")) =
   mlfLam [UN "_ty", UN "arr", UN "i", UN "_world"] $
-    sexp [text "load", mlfVar (UN "arr"), mlfVar (UN "i")]
+    sexp [text "load", mlfLocalVar (UN "arr"), mlfLocalVar (UN "i")]
 mlfExtPrim (NS _ (UN "prim__arraySet")) =
   mlfLam [UN "_ty", UN "arr", UN "i", UN "x", UN "_world"] $
-    sexp [text "store", mlfVar (UN "arr"), mlfVar (UN "i"), mlfVar (UN "x")]
+    sexp [text "store", mlfLocalVar (UN "arr"), mlfLocalVar (UN "i"), mlfLocalVar (UN "x")]
 mlfExtPrim (NS _ (UN "prim__newIORef")) =
   mlfLam [UN "_ty", UN "x", UN "_world"] $
-    sexp [text "makevec", show 1, mlfVar (UN "x")]
+    sexp [text "makevec", show 1, mlfLocalVar (UN "x")]
 mlfExtPrim (NS _ (UN "prim__readIORef")) =
   mlfLam [UN "_ty", UN "ref", UN "_world"] $
-    sexp [text "load", mlfVar (UN "ref"), show 0]
+    sexp [text "load", mlfLocalVar (UN "ref"), show 0]
 mlfExtPrim (NS _ (UN "prim__writeIORef")) =
   mlfLam [UN "_ty", UN "ref", UN "x", UN "_world"] $
-    sexp [text "store", mlfVar (UN "ref"), show 0, mlfVar (UN "x")]
+    sexp [text "store", mlfLocalVar (UN "ref"), show 0, mlfLocalVar (UN "x")]
 mlfExtPrim (NS _ (UN "prim__schemeCall")) =
   mlfLam [UN "_rTy", UN "fn", UN "_args", UN "_world"] $
-    mlfLibCall "Stdlib.failwith" [mlfVar (UN "fn")]
+    mlfLibCall "Stdlib.failwith" [mlfLocalVar (UN "fn")]
 mlfExtPrim (NS _ (UN "prim__codegen")) = mlfString "malfunction"
 mlfExtPrim (NS _ (UN "prim__os")) = mlfGlobal "Rts.System.os_name"
 mlfExtPrim n = mlfError $ "unimplemented external primitive: " ++ show n
@@ -362,7 +369,7 @@ mlfConstDflt : Doc -> Doc
 mlfConstDflt rhs = sexp [text "_", rhs]
 
 mlfField : Name -> Int -> Doc
-mlfField n i = sexp [text "field", show i, mlfVar n]
+mlfField n i = sexp [text "field", show i, mlfLocalVar n]
 
 number : Int -> List a -> List (Int, a)
 number i [] = []
@@ -373,7 +380,7 @@ bindFieldProjs scrutN [] rhs = rhs
 bindFieldProjs scrutN ns rhs = parens $
   text "let"
   $$ indent (
-    vcat [sexp [mlfVar n, mlfField scrutN i] | (i, n) <- number 0 ns]
+    vcat [sexp [mlfLocalVar n, mlfField scrutN i] | (i, n) <- number 0 ns]
     $$ rhs
   )
 
@@ -442,7 +449,7 @@ parameters (ldefs : SortedSet Name, nsMapping : StringMap ModuleName, curModuleN
     mlfEqChain scrutN Nothing [] = mlfError "impossible eq chain"
     mlfEqChain scrutN (Just dflt) [] = dflt
     mlfEqChain scrutN mbDflt (MkNConstAlt c rhs :: alts) = parens $
-      text "if" <++> mlfConstEqCheck (mlfVar scrutN) c
+      text "if" <++> mlfConstEqCheck (mlfLocalVar scrutN) c
       $$ indent (
         mlfTm rhs
         $$ mlfEqChain scrutN mbDflt alts
@@ -465,7 +472,7 @@ parameters (ldefs : SortedSet Name, nsMapping : StringMap ModuleName, curModuleN
         Nothing => Nothing
 
     mlfTm : NamedCExp -> Doc
-    mlfTm (NmLocal fc n) = mlfVar n
+    mlfTm (NmLocal fc n) = mlfLocalVar n
     mlfTm (NmRef fc n) =
         if contains n ldefs
           then mlfForce (mlfGlobalNS nsMapping curModuleName n)
@@ -491,7 +498,7 @@ parameters (ldefs : SortedSet Name, nsMapping : StringMap ModuleName, curModuleN
     mlfTm (NmConCase fc scrut alts mbDflt) =
       bindScrut scrut $ \scrutN =>
         mlfSwitch
-          (mlfVar scrutN)
+          (mlfLocalVar scrutN)
           (map (mlfConAlt scrutN) alts)
           (mlfConDflt . mlfTm <$> mbDflt)
     mlfTm (NmConstCase fc scrut alts mbDflt) =
@@ -510,7 +517,7 @@ parameters (ldefs : SortedSet Name, nsMapping : StringMap ModuleName, curModuleN
     mlfLam args (mlfTm rhs)
 
   mlfBody (MkNmCon mbTag arity mbNewtype) =
-      mlfLam args (mlfBlock mbTag $ map mlfVar args)
+      mlfLam args (mlfBlock mbTag $ map mlfLocalVar args)
     where
       args : List Name
       args = [UN $ "arg" ++ show i | i <- [0..cast {to = Int} arity-1]]
@@ -518,7 +525,7 @@ parameters (ldefs : SortedSet Name, nsMapping : StringMap ModuleName, curModuleN
   mlfBody (MkNmForeign ccs args cty) =
     mlfLam (map fst lamArgs) $
       case ccLibFun ccs of
-        Just fn => mlfLibCall fn (map mlfVar mlArgs)
+        Just fn => mlfLibCall fn (map mlfLocalVar mlArgs)
         Nothing =>
           mlfError $ "unimplemented foreign: " ++ show (MkNmForeign ccs args cty)
     where
@@ -547,7 +554,7 @@ parameters (ldefs : SortedSet Name, nsMapping : StringMap ModuleName, curModuleN
 
   mlfDef : (Name, FC, NamedDef) -> Doc
   mlfDef (n, fc, body) =
-    parens (mlfVar n $$ indent (mlfBody body))
+    parens (mlfGlobalVar n $$ indent (mlfBody body))
     $$ text ""
 
 lazyDefs : List (Name, FC, NamedDef) -> SortedSet Name
@@ -702,7 +709,7 @@ generateModules c tm bld = do
               $$ text ""
               $$ parens (
                 text "export"
-                $$ indent (vcat [mlfVar n | (n, _, _) <- defs])
+                $$ indent (vcat [mlfGlobalVar n | (n, _, _) <- defs])
                 )
               )
             )
@@ -718,7 +725,7 @@ generateModules c tm bld = do
       -- write the MLI file
       let mliCode = render " " $
             vcat
-              [ text "val" <++> mlfName n <++> text ": 'a"
+              [ text "val" <++> mlfGlobalName n <++> text ": 'a"
               | (n, _, _) <- defs
               ]
       let fname = bld </> mlMod.name <.> "mli"
