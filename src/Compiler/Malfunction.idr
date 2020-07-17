@@ -705,6 +705,7 @@ generateModules c tm bld = do
 
   -- generate one module per strongly connected component
   -- start with Builtins, work up to modules with many dependencies
+  outdatedModNames <- coreLift $ newIORef SortedSet.empty
   moduleNames <- coreFor components $ \modNames => case modNames of
     [] => throw $ InternalError "empty connected component"
     mn :: mns => do
@@ -732,16 +733,34 @@ generateModules c tm bld = do
         Left err => pure $ Nothing
         Right h  => pure $ Just h
 
-      if mbPrevHash == Just codeHashStr
+      isUpToDate <- do
+        outdatedMNs <- coreLift $ readIORef outdatedModNames
+        let allDeps = concat [fromMaybe SortedSet.empty (StringMap.lookup n defDeps) | n <- mn :: mns]
+        pure $
+          -- hash matches
+          (mbPrevHash == Just codeHashStr)
+          -- no deps are outdated
+          -- we check only direct deps because we're traversing in dep order, anyway
+          && (SortedSet.null $ SortedSet.intersection allDeps outdatedMNs)
+
+      if isUpToDate
         then pure (MkMI mlModName False)  -- up to date, nothing to do
         else do
+          -- mark all namespaces in this module as outdated
+          coreLift $ do
+            omns <- readIORef outdatedModNames
+            writeIORef outdatedModNames $
+              omns <+> SortedSet.fromList (mn :: mns)
+
           -- write the MLF file
           let fname = bld </> mlModName.string <.> "mlf"
           Right () <- coreLift $ writeFile fname code
             | Left err => throw (FileErr fname err)
 
           -- update the hash file
-          let fname = bld </> mlModName.string <.> "hash"
+          -- write into .hash.tmp, which will be renamed to .hash
+          -- once the build succeeds
+          let fname = bld </> mlModName.string <.> "hash.tmp"
           Right () <- coreLift $ writeFile fname codeHashStr
             | Left err => throw (FileErr fname err)
 
@@ -809,8 +828,10 @@ compileExpr c tmpDir outputDir tm outfile = do
         , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.ml"
         -- rebuild only the outdated MLF modules
         , unwords
-          [    "&& ocamlfind opt -I +threads " ++ flags ++ " -c " ++ mod.name.string ++ ".mli "
-            ++ "&& malfunction cmx " ++ mod.name.string ++ ".mlf"
+          [    " && ocamlfind opt -I +threads " ++ flags ++ " -c " ++ mod.name.string ++ ".mli "
+            ++ " && malfunction cmx " ++ mod.name.string ++ ".mlf"
+            -- mark the module build as successful
+            ++ " && mv " ++ mod.name.string ++ ".hash.tmp " ++ mod.name.string ++ ".hash"
           | mod <- modules
           , mod.outdated
           ]
