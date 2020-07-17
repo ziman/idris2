@@ -670,6 +670,11 @@ tarjan deps = loop initialState (StringMap.keys deps)
 coreFor : List a -> (a -> Core b) -> Core (List b)
 coreFor xs f = Core.traverse f xs
 
+record ModuleInfo where
+  constructor MkMI
+  name : ModuleName
+  outdated : Bool
+
 generateModules : Ref Ctxt Defs ->
                ClosedTerm -> (outfile : String) -> Core (List ModuleName)
 generateModules c tm bld = do

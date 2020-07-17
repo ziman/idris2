@@ -69,6 +69,10 @@
           (x (max 0 len))
           (end (min l (+ b x))))
           (substring s b end)))
+(define (read-string-char ofs s)
+  (if (>= ofs (string-length s))
+    (vector 0)  ; EOF
+    (vector 1 (string-ref s ofs) 1)))
 
 (define either-left
   (lambda (x)

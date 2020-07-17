@@ -208,6 +208,29 @@ static inline void utf8_write(uint8_t * buf, size_t cp_width, uint32_t cp)
 	}
 }
 
+CAMLprim value ml_string_readChar(value ofs, value src)
+{
+	CAMLparam2(ofs, src);
+	CAMLlocal1(result);
+
+	uint32_t cp;
+	const size_t cp_width = utf8_read(
+		Bytes_val(src) + Int_val(ofs),
+		caml_string_length(src) - Int_val(ofs),
+		&cp
+	);
+
+	if (cp_width == 0) {
+		result = Val_int(0);  // EOF, int 0
+	} else {
+		result = caml_alloc(2, 1);  // Character, block tag 1
+		Store_field(result, 0, Val_int(cp));
+		Store_field(result, 1, Val_int(cp_width));
+	}
+
+	CAMLreturn(result);
+}
+
 CAMLprim value ml_string_reverse(value src)
 {
 	CAMLparam1(src);

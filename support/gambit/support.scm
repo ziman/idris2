@@ -87,6 +87,10 @@
          (end (fxmin (fx+ start (fxmax 0 len))
                      (string-length s))))
     (substring s start end)))
+(define (read-string-char ofs s)
+  (if (>= ofs (string-length s))
+    (vector 0)  ; EOF
+    (vector 1 (string-ref s ofs) 1)))
 
 (define-macro (get-tag x) `(vector-ref ,x 0))
 
