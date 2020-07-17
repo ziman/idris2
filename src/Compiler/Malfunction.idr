@@ -801,15 +801,13 @@ compileExpr c tmpDir outputDir tm outfile = do
   let flags = if debug then "-g" else ""
   let cmd = unwords
         [ "(cd " ++ bld
-        -- clean up
-        , "&& { rm -f Rts.mli *.cmi *.cmx *.o || true; }"
-        -- C
+        -- C, this is fast
         , "&& cc -O2 " ++ flags ++ " -c rts.c -I $(ocamlc -where)"
-        -- Rts
+        -- Rts, thas is fast too
         , "&& ocamlfind opt -I +threads " ++ flags ++ " -i Rts.ml > Rts.mli"
         , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.mli"
         , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.ml"
-        -- rebuild outdated MLF modules
+        -- rebuild only the outdated MLF modules
         , unwords
           [    "&& ocamlfind opt -I +threads " ++ flags ++ " -c " ++ mod.name.string ++ ".mli "
             ++ "&& malfunction cmx " ++ mod.name.string ++ ".mlf"
