@@ -5,6 +5,7 @@ import Compiler.CompileExpr
 import Compiler.Inline
 import Compiler.Scheme.Common
 
+import Core.Hash
 import Core.Context
 import Core.Directory
 import Core.Name
@@ -122,7 +123,7 @@ mlfNS n = "Misc"
 
 record ModuleName where
   constructor MkMN
-  name : String
+  string : String
 
 Eq ModuleName where
   MkMN x == MkMN y = x == y
@@ -132,10 +133,10 @@ mlfGlobalNS nsMap curModuleName n =
   let mns = mlfNS n
     in case StringMap.lookup mns nsMap of
       Nothing => mlfError $ "mlfGlobalNS: impossible: could not find " ++ show mns
-      Just targetMod =>
-        if targetMod == curModuleName
+      Just targetModName =>
+        if targetModName == curModuleName
           then mlfGlobalVar n  -- within-module reference
-          else sexp [text "global", text ("$" ++ targetMod.name), mlfGlobalVar n]
+          else sexp [text "global", text ("$" ++ targetModName.string), mlfGlobalVar n]
 
 mlfLet : Name -> Doc -> Doc -> Doc
 mlfLet n val rhs = parens $
@@ -676,7 +677,7 @@ record ModuleInfo where
   outdated : Bool
 
 generateModules : Ref Ctxt Defs ->
-               ClosedTerm -> (outfile : String) -> Core (List ModuleName)
+               ClosedTerm -> (outfile : String) -> Core (List ModuleInfo)
 generateModules c tm bld = do
   cdata <- getCompileData Cases tm
   let ndefs = namedDefs cdata
@@ -707,9 +708,9 @@ generateModules c tm bld = do
   moduleNames <- coreFor components $ \modNames => case modNames of
     [] => throw $ InternalError "empty connected component"
     mn :: mns => do
-      let mlMod = MkMN (foldl min mn mns)
+      let mlModName = MkMN (foldl min mn mns)
       let defs = concatMap (\modName => fromMaybe [] $ StringMap.lookup modName defsByNS) modNames
-      let defsMlf = map (mlfDef ldefs nsMapping mlMod) defs
+      let defsMlf = map (mlfDef ldefs nsMapping mlModName) defs
       let code = render " " $ parens (
             text "module"
             $$ indent (
@@ -725,22 +726,36 @@ generateModules c tm bld = do
             $$ text "; vim: ft=lisp"
             $$ text ""  -- end with a newline
 
-      -- write the MLF file
-      let fname = bld </> mlMod.name <.> "mlf"
-      Right () <- coreLift $ writeFile fname code
-        | Left err => throw (FileErr fname err)
+      -- check if the files need updating
+      let codeHashStr = show (hash code) ++ "\n"
+      mbPrevHash <- coreLift (readFile (bld </> mlModName.string <.> "hash")) >>= \case
+        Left err => pure $ Nothing
+        Right h  => pure $ Just h
 
-      -- write the MLI file
-      let mliCode = render " " $
-            vcat
-              [ text "val" <++> mlfGlobalName n <++> text ": 'a"
-              | (n, _, _) <- defs
-              ]
-      let fname = bld </> mlMod.name <.> "mli"
-      Right () <- coreLift $ writeFile fname mliCode
-        | Left err => throw (FileErr fname err)
+      if mbPrevHash == Just codeHashStr
+        then pure (MkMI mlModName False)  -- up to date, nothing to do
+        else do
+          -- write the MLF file
+          let fname = bld </> mlModName.string <.> "mlf"
+          Right () <- coreLift $ writeFile fname code
+            | Left err => throw (FileErr fname err)
 
-      pure mlMod  -- return the name of the ML module that represents the group of Idris modules
+          -- update the hash file
+          let fname = bld </> mlModName.string <.> "hash"
+          Right () <- coreLift $ writeFile fname codeHashStr
+            | Left err => throw (FileErr fname err)
+
+          -- write the MLI file
+          let mliCode = render " " $
+                vcat
+                  [ text "val" <++> mlfGlobalName n <++> text ": 'a"
+                  | (n, _, _) <- defs
+                  ]
+          let fname = bld </> mlModName.string <.> "mli"
+          Right () <- coreLift $ writeFile fname mliCode
+            | Left err => throw (FileErr fname err)
+
+          pure (MkMI mlModName True)
 
   -- generate the main module
   mainMlf <- pure $ mlfTm ldefs nsMapping (MkMN "Main") ctm
@@ -762,7 +777,7 @@ generateModules c tm bld = do
   Right () <- coreLift $ writeFile (bld </> "Main.mli") ""
     | Left err => throw (FileErr (bld </> "Main.mli") err)
 
-  pure $ moduleNames ++ [MkMN "Main"]
+  pure $ moduleNames ++ [MkMI (MkMN "Main") True]
 
 compileExpr : Ref Ctxt Defs -> (tmpDir : String) -> (outputDir : String) ->
               ClosedTerm -> (outfile : String) -> Core (Maybe String)
@@ -781,7 +796,7 @@ compileExpr c tmpDir outputDir tm outfile = do
 
   copy "Rts.ml"
   copy "rts.c"
-  modNames <- generateModules c tm bld
+  modules <- generateModules c tm bld
 
   let flags = if debug then "-g" else ""
   let cmd = unwords
@@ -794,16 +809,17 @@ compileExpr c tmpDir outputDir tm outfile = do
         , "&& ocamlfind opt -I +threads " ++ flags ++ " -i Rts.ml > Rts.mli"
         , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.mli"
         , "&& ocamlfind opt -I +threads " ++ flags ++ " -c Rts.ml"
-        -- MLF modules
+        -- rebuild outdated MLF modules
         , unwords
-          [    "&& ocamlfind opt -I +threads " ++ flags ++ " -c " ++ modName.name ++ ".mli "
-            ++ "&& malfunction cmx " ++ modName.name ++ ".mlf"
-          | modName <- modNames
+          [    "&& ocamlfind opt -I +threads " ++ flags ++ " -c " ++ mod.name.string ++ ".mli "
+            ++ "&& malfunction cmx " ++ mod.name.string ++ ".mlf"
+          | mod <- modules
+          , mod.outdated
           ]
         -- link it all together
         , "&& ocamlfind opt -thread -package zarith -linkpkg -nodynlink "
             ++ flags ++ " rts.o libidris2_support.a Rts.cmx "
-            ++ unwords [modName.name ++ ".cmx" | modName <- modNames]
+            ++ unwords [mod.name.string ++ ".cmx" | mod <- modules]
             ++ " -o ../" ++ outfile
         , ")"
         ]
