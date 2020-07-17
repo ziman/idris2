@@ -792,6 +792,10 @@ generateModules c tm bld = do
   Right () <- coreLift $ writeFile (bld </> "Main.mlf") code
     | Left err => throw (FileErr (bld </> "Main.mlf") err)
 
+  -- write an empty hash file
+  Right () <- coreLift $ writeFile (bld </> "Main.hash.tmp") ""
+    | Left err => throw (FileErr (bld </> "Main.hash.tmp") err)
+
   -- write an empty Main.mli
   Right () <- coreLift $ writeFile (bld </> "Main.mli") ""
     | Left err => throw (FileErr (bld </> "Main.mli") err)
