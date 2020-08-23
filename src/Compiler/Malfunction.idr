@@ -821,7 +821,7 @@ compileExpr c tmpDir outputDir tm outfile = do
   -- TMP HACK
   -- .a and .h files
   coreLift $ system $ unwords
-    ["cp", "~/.idris2/idris2-0.2.0/support/c/*", bld]
+    ["cp", "~/.idris2/idris2-0.2.1/support/c/*", bld]
 
   copy "Rts.ml"
   copy "rts.c"
