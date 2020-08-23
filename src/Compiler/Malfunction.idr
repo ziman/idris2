@@ -16,6 +16,7 @@ import Utils.Path
 import Utils.Pretty
 
 import Data.List
+import Data.List1
 import Data.Maybe
 import Data.NameMap
 import Data.StringMap
@@ -69,7 +70,7 @@ mlfGlobal mlName = parens $
   text "global"
     <++> hsep
       [ text ("$" ++ n)
-      | n <- split (== '.') mlName
+      | n <- Data.List1.toList $ split (== '.') mlName
       ]
 
 mlfApply : Doc -> List Doc -> Doc
@@ -735,7 +736,10 @@ generateModules c tm bld = do
 
       isUpToDate <- do
         outdatedMNs <- coreLift $ readIORef outdatedModNames
-        let allDeps = concat [fromMaybe SortedSet.empty (StringMap.lookup n defDeps) | n <- mn :: mns]
+        let allDeps = concat
+              [ fromMaybe SortedSet.empty (StringMap.lookup n defDeps)
+              | n <- with Prelude.(::) mn :: mns
+              ]
         pure $
           -- hash matches
           (mbPrevHash == Just codeHashStr)
