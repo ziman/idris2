@@ -219,6 +219,12 @@ module C = struct
         external idrnet_free_recvfrom_struct : 'result pointer -> unit = "ml_idrnet_free_recvfrom_struct"
 
         external idrnet_geteagain : world -> int = "ml_idrnet_geteagain"
+
+        (* idris2_term.h *)
+        external idris2_setupTerm : world -> unit = "ml_idris2_setupTerm"
+        external idris2_getTermCols : world -> int = "ml_idris2_getTermCols"
+        external idris2_getTermLines : world -> int = "ml_idris2_getTermLines"
+
     end
 
     module Lib_libc6 = struct

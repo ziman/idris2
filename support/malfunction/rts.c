@@ -14,6 +14,7 @@
 #include "idris_file.h"
 #include "idris_net.h"
 #include "idris_support.h"
+#include "idris_term.h"
 
 #include "sys/stat.h"
 
@@ -1131,3 +1132,20 @@ CAMLprim value ml_idris2_listen(value socket, value backlog) {
   CAMLreturn(Val_int(result));
 }
 
+CAMLprim value ml_idris2_setupTerm(value world) {
+	CAMLparam1(world);
+	idris2_setupTerm();
+	CAMLreturn(Val_int(0));  // unit
+}
+
+CAMLprim value ml_idris2_getTermCols(value world) {
+	CAMLparam1(world);
+	int ncols = idris2_getTermCols();
+	CAMLreturn(Val_int(ncols));
+}
+
+CAMLprim value ml_idris2_getTermLines(value world) {
+	CAMLparam1(world);
+	int nlines = idris2_getTermLines();
+	CAMLreturn(Val_int(nlines));
+}
