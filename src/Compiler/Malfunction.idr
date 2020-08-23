@@ -764,6 +764,8 @@ generateModules c tm bld = do
           Right () <- coreLift $ writeFile fname codeHashStr
             | Left err => throw (FileErr fname err)
 
+          -- TODO: restore the .cmi file if the MLI file has not changed
+
           -- write the MLI file
           let mliCode = render " " $
                 vcat
