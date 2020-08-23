@@ -2,6 +2,7 @@ module Compiler.ES.ES
 
 import Compiler.ES.Imperative
 import Utils.Hex
+import Data.List1
 import Data.Strings
 import Data.SortedMap
 import Data.String.Extra
@@ -54,10 +55,17 @@ addConstToPreamble name def =
     let v = "const " ++ newName ++ " = (" ++ def ++ ");"
     addToPreamble name newName v
 
+requireSafe : String -> String
+requireSafe = pack . map (\c => case c of 
+                                     '@' => '_'
+                                     '/' => '_'
+                                     '-' => '_'
+                                     _ => c
+                         ) . unpack
 addRequireToPreamble : {auto c : Ref ESs ESSt} -> String -> Core String
 addRequireToPreamble name =
   do
-    let newName = "__require_" ++ name
+    let newName = "__require_" ++ requireSafe name
     let v = "const " ++ newName ++ " = require(" ++ jsString name ++ ");"
     addToPreamble name newName v
 
@@ -238,10 +246,33 @@ jsOp (Cast StringType IntegerType) [x] = jsIntegerOfString x
 jsOp (Cast IntegerType IntType) [x] = boundedInt 63 x
 jsOp (Cast IntType IntegerType) [x] = pure x
 jsOp (Cast StringType DoubleType) [x] = pure $ "parseFloat(" ++ x ++ ")"
+
+jsOp (Cast IntType Bits8Type) [x] = boundedUInt 8 x
+jsOp (Cast IntType Bits16Type) [x] = boundedUInt 16 x
+jsOp (Cast IntType Bits32Type) [x] = boundedUInt 32 x
+jsOp (Cast IntType Bits64Type) [x] = boundedUInt 64 x
+
 jsOp (Cast IntegerType Bits8Type) [x] = boundedUInt 8 x
 jsOp (Cast IntegerType Bits16Type) [x] = boundedUInt 16 x
 jsOp (Cast IntegerType Bits32Type) [x] = boundedUInt 32 x
 jsOp (Cast IntegerType Bits64Type) [x] = boundedUInt 64 x
+
+jsOp (Cast Bits8Type Bits16Type) [x] = pure x
+jsOp (Cast Bits8Type Bits32Type) [x] = pure x
+jsOp (Cast Bits8Type Bits64Type) [x] = pure x
+
+jsOp (Cast Bits16Type Bits8Type) [x] = boundedUInt 8 x
+jsOp (Cast Bits16Type Bits32Type) [x] = pure x
+jsOp (Cast Bits16Type Bits64Type) [x] = pure x
+
+jsOp (Cast Bits32Type Bits8Type) [x] = boundedUInt 8 x
+jsOp (Cast Bits32Type Bits16Type) [x] = boundedUInt 16 x
+jsOp (Cast Bits32Type Bits64Type) [x] = pure x
+
+jsOp (Cast Bits64Type Bits8Type) [x] = boundedUInt 8 x
+jsOp (Cast Bits64Type Bits16Type) [x] = boundedUInt 16 x
+jsOp (Cast Bits64Type Bits32Type) [x] = boundedUInt 32 x
+
 jsOp (Cast ty StringType) [x] = pure $ "(''+" ++ x ++ ")"
 jsOp (Cast ty ty2) [x] = jsCrashExp $ "invalid cast: + " ++ show ty ++ " + ' -> ' + " ++ show ty2
 jsOp BelieveMe [_,_,x] = pure x
@@ -271,7 +302,7 @@ makeForeign n x =
       "lambdaRequire" =>
         do
           let (libs, def_) = readCCPart def
-          traverse addRequireToPreamble (split (==',') libs)
+          traverseList1 addRequireToPreamble (split (==',') libs)
           pure $ "const " ++ jsName n ++ " = (" ++ def_ ++ ")\n"
       "support" =>
         do
@@ -282,7 +313,7 @@ makeForeign n x =
           pure $ "const " ++ jsName n ++ " = " ++ lib ++ "_" ++ name ++ "\n"
 
 
-      _ => throw (InternalError $ "invalid foreign type : " ++ ty ++ ", supporte types are lambda")
+      _ => throw (InternalError $ "invalid foreign type : " ++ ty ++ ", supported types are \"lambda\", \"lambdaRequire\", \"support\"")
 
 foreignDecl : {auto d : Ref Ctxt Defs} -> {auto c : Ref ESs ESSt} -> Name -> List String -> Core String
 foreignDecl n ccs =
@@ -391,6 +422,7 @@ static_preamble =
   [ "class IdrisError extends Error { }"
   , "function __prim_idris2js_FArgList(x){if(x.h === 0){return []}else{return x.a2.concat(__prim_idris2js_FArgList(x.a3))}}"
   , "function __prim_js2idris_array(x){if(x.length ===0){return {h:0}}else{return {h:1,a1:x[0],a2: __prim_js2idris_array(x.slice(1))}}}"
+  , "function __prim_idris2js_array(x){const result = Array();while (x.h != 0) {result.push(x.a1); x = x.a2;}return result;}"
   ]
 
 export

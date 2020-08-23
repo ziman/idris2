@@ -7,6 +7,7 @@ import        Core.Env
 import        Core.Hash
 import public Core.Name
 import        Core.Options
+import public Core.Options.Log
 import public Core.TT
 
 import Utils.Binary
@@ -113,7 +114,7 @@ data Def : Type where
             (constraints : List Int) -> Def
     ImpBind : Def -- global name temporarily standing for an implicitly bound name
     -- A delayed elaboration. The elaborators themselves are stored in the
-    -- unifiation state
+    -- unification state
     Delayed : Def
 
 export
@@ -632,8 +633,7 @@ export
 HasNames (Term vars) where
   full gam (Ref fc x (Resolved i))
       = do Just gdef <- lookupCtxtExact (Resolved i) gam
-                | Nothing => do coreLift $ putStrLn $ "Missing name! " ++ show i
-                                pure (Ref fc x (Resolved i))
+                | Nothing => pure (Ref fc x (Resolved i))
            pure (Ref fc x (fullname gdef))
   full gam (Meta fc x y xs)
       = pure (Meta fc x y !(traverse (full gam) xs))
@@ -1198,6 +1198,13 @@ depth
   = do defs <- get Ctxt
        pure (branchDepth (gamma defs))
 
+export
+dumpStaging : {auto c : Ref Ctxt Defs} ->
+              Core ()
+dumpStaging
+    = do defs <- get Ctxt
+         coreLift $ putStrLn $ "Staging area: " ++ show (keys (staging (gamma defs)))
+
 -- Explicitly note that the name should be saved when writing out a .ttc
 export
 addToSave : {auto c : Ref Ctxt Defs} ->
@@ -1529,7 +1536,7 @@ setDetermining fc tyn args
     -- Type isn't normalised, but the argument names refer to those given
     -- explicitly in the type, so there's no need.
     getPos : Nat -> List Name -> Term vs -> Core (List Nat)
-    getPos i ns (Bind _ x (Pi _ _ _) sc)
+    getPos i ns (Bind _ x (Pi _ _ _ _) sc)
         = if x `elem` ns
              then do rest <- getPos (1 + i) (filter (/=x) ns) sc
                      pure $ i :: rest
@@ -1719,7 +1726,8 @@ getDirectives : {auto c : Ref Ctxt Defs} ->
                 CG -> Core (List String)
 getDirectives cg
     = do defs <- get Ctxt
-         pure (mapMaybe getDir (cgdirectives defs))
+         pure $ defs.options.session.directives ++
+                 mapMaybe getDir (cgdirectives defs)
   where
     getDir : (CG, String) -> Maybe String
     getDir (x', str) = if cg == x' then Just str else Nothing
@@ -1767,7 +1775,7 @@ updateParams (Just args) args' = dropReps $ zipWith mergeArg args args'
 getPs : {vars : _} ->
         Maybe (List (Maybe (Term vars))) -> Name -> Term vars ->
         Maybe (List (Maybe (Term vars)))
-getPs acc tyn (Bind _ x (Pi _ _ ty) sc)
+getPs acc tyn (Bind _ x (Pi _ _ _ ty) sc)
       = let scPs = getPs (Prelude.map (Prelude.map (Prelude.map weaken)) acc) tyn sc in
             map (map shrink) scPs
   where
@@ -1793,7 +1801,7 @@ toPos (Just ns) = justPos 0 ns
 
 getConPs : {vars : _} ->
            Maybe (List (Maybe (Term vars))) -> Name -> Term vars -> List Nat
-getConPs acc tyn (Bind _ x (Pi _ _ ty) sc)
+getConPs acc tyn (Bind _ x (Pi _ _ _ ty) sc)
     = let bacc = getPs acc tyn ty in
           getConPs (map (map (map weaken)) bacc) tyn sc
 getConPs acc tyn tm = toPos (getPs acc tyn tm)
@@ -2254,11 +2262,23 @@ fromCharName
          pure $ fromCharName (primnames (options defs))
 
 export
-setLogLevel : {auto c : Ref Ctxt Defs} ->
-              Nat -> Core ()
-setLogLevel l
+addLogLevel : {auto c : Ref Ctxt Defs} ->
+              LogLevel -> Core ()
+addLogLevel l
     = do defs <- get Ctxt
-         put Ctxt (record { options->session->logLevel = l } defs)
+         put Ctxt (record { options->session->logLevel $= insertLogLevel l } defs)
+
+export
+withLogLevel : {auto c : Ref Ctxt Defs} ->
+               LogLevel -> Core a -> Core a
+withLogLevel l comp = do
+  defs <- get Ctxt
+  let logs = logLevel (session (options defs))
+  put Ctxt (record { options->session->logLevel = insertLogLevel l logs } defs)
+  r <- comp
+  defs <- get Ctxt
+  put Ctxt (record { options->session->logLevel = logs } defs)
+  pure r
 
 export
 setLogTimings : {auto c : Ref Ctxt Defs} ->
@@ -2299,30 +2319,38 @@ recordWarning w
 export
 logTerm : {vars : _} ->
           {auto c : Ref Ctxt Defs} ->
-          Nat -> Lazy String -> Term vars -> Core ()
-logTerm lvl msg tm
+          String -> Nat -> Lazy String -> Term vars -> Core ()
+logTerm str n msg tm
     = do opts <- getSession
-         if logLevel opts >= lvl
+         let lvl = mkLogLevel str n
+         if keepLog lvl (logLevel opts)
             then do tm' <- toFullNames tm
                     coreLift $ putStrLn $ "LOG " ++ show lvl ++ ": " ++ msg
                                           ++ ": " ++ show tm'
             else pure ()
-
 export
-log : {auto c : Ref Ctxt Defs} ->
-      Nat -> Lazy String -> Core ()
-log lvl msg
+log' : {auto c : Ref Ctxt Defs} ->
+       LogLevel -> Lazy String -> Core ()
+log' lvl msg
     = do opts <- getSession
-         if logLevel opts >= lvl
+         if keepLog lvl (logLevel opts)
             then coreLift $ putStrLn $ "LOG " ++ show lvl ++ ": " ++ msg
             else pure ()
 
 export
+log : {auto c : Ref Ctxt Defs} ->
+      String -> Nat -> Lazy String -> Core ()
+log str n msg
+    = do let lvl = mkLogLevel str n
+         log' lvl msg
+
+export
 logC : {auto c : Ref Ctxt Defs} ->
-       Nat -> Core String -> Core ()
-logC lvl cmsg
+       String -> Nat -> Core String -> Core ()
+logC str n cmsg
     = do opts <- getSession
-         if logLevel opts >= lvl
+         let lvl = mkLogLevel str n
+         if keepLog lvl (logLevel opts)
             then do msg <- cmsg
                     coreLift $ putStrLn $ "LOG " ++ show lvl ++ ": " ++ msg
             else pure ()

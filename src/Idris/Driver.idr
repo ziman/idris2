@@ -16,16 +16,19 @@ import Idris.REPL
 import Idris.SetOptions
 import Idris.Syntax
 import Idris.Version
+import Idris.Pretty
 
 import IdrisPaths
 
 import Data.List
+import Data.List1
 import Data.So
 import Data.Strings
 import System
 import System.Directory
 import System.File
 import Utils.Path
+import Utils.Term
 
 import Yaffle.Main
 
@@ -47,15 +50,15 @@ updateEnv
               Nothing => setPrefix yprefix
          bpath <- coreLift $ getEnv "IDRIS2_PATH"
          the (Core ()) $ case bpath of
-              Just path => do traverse_ addExtraDir (map trim (split (==pathSeparator) path))
+              Just path => do traverseList1_ addExtraDir (map trim (split (==pathSeparator) path))
               Nothing => pure ()
          bdata <- coreLift $ getEnv "IDRIS2_DATA"
          the (Core ()) $ case bdata of
-              Just path => do traverse_ addDataDir (map trim (split (==pathSeparator) path))
+              Just path => do traverseList1_ addDataDir (map trim (split (==pathSeparator) path))
               Nothing => pure ()
          blibs <- coreLift $ getEnv "IDRIS2_LIBS"
          the (Core ()) $ case blibs of
-              Just path => do traverse_ addLibDir (map trim (split (==pathSeparator) path))
+              Just path => do traverseList1_ addLibDir (map trim (split (==pathSeparator) path))
               Nothing => pure ()
          cg <- coreLift $ getEnv "IDRIS2_CG"
          the (Core ()) $ case cg of
@@ -95,7 +98,7 @@ showInfo : {auto c : Ref Ctxt Defs}
 showInfo Nil = pure False
 showInfo (BlodwenPaths :: _)
     = do defs <- get Ctxt
-         iputStrLn (toString (dirs (options defs)))
+         iputStrLn $ pretty (toString (dirs (options defs)))
          pure True
 showInfo (_::rest) = showInfo rest
 
@@ -148,10 +151,7 @@ stMain cgs opts
          o <- newRef ROpts (REPLOpts.defaultOpts fname outmode cgs)
 
          finish <- showInfo opts
-         if finish
-            then pure ()
-            else do
-
+         when (not finish) $ do
            -- If there's a --build or --install, just do that then quit
            done <- processPackageOpts opts
 
@@ -166,19 +166,18 @@ stMain cgs opts
                  updateREPLOpts
                  session <- getSession
                  when (not $ nobanner session) $ do
-                   iputStrLn banner
-                   when (isCons cgs) $ iputStrLn ("With codegen for: " ++
-                                                       fastAppend (map (\(s, _) => s ++ " ") cgs))
+                   iputStrLn $ pretty banner
+                   when (isCons cgs) $ iputStrLn (reflow "With codegen for:" <++> hsep (pretty . fst <$> cgs))
                  fname <- if findipkg session
                              then findIpkg fname
                              else pure fname
                  setMainFile fname
                  result <- case fname of
-                      Nothing => logTime "Loading prelude" $ do
+                      Nothing => logTime "+ Loading prelude" $ do
                                    when (not $ noprelude session) $
                                      readPrelude True
                                    pure Done
-                      Just f => logTime "Loading main file" $ do
+                      Just f => logTime "+ Loading main file" $ do
                                   res <- loadMainFile f
                                   displayErrors res
                                   pure res
@@ -235,9 +234,9 @@ mainWithCodegens cgs = do Right opts <- getCmdOpts
                                              putStrLn usage
                           continue <- quitOpts opts
                           if continue
-                              then
-                                  coreRun (stMain cgs opts)
-                                    (\err : Error => do putStrLn ("Uncaught error: " ++ show err)
-                                                        exitWith (ExitFailure 1))
-                                    (\res => pure ())
+                              then do setupTerm
+                                      coreRun (stMain cgs opts)
+                                        (\err : Error => do putStrLn ("Uncaught error: " ++ show err)
+                                                            exitWith (ExitFailure 1))
+                                        (\res => pure ())
                               else pure ()

@@ -14,6 +14,7 @@ import Utils.Hex
 import Utils.Path
 
 import Data.List
+import Data.List1
 import Data.Maybe
 import Data.NameMap
 import Data.Strings
@@ -26,11 +27,10 @@ import System.Info
 
 %default covering
 
-
 pathLookup : IO String
 pathLookup
     = do path <- getEnv "PATH"
-         let pathList = split (== pathSeparator) $ fromMaybe "/usr/bin:/usr/local/bin" path
+         let pathList = List1.toList $ split (== pathSeparator) $ fromMaybe "/usr/bin:/usr/local/bin" path
          let candidates = [p ++ "/" ++ x | p <- pathList,
                                            x <- ["chez", "chezscheme9.5", "scheme", "scheme.exe"]]
          e <- firstExists candidates
@@ -167,7 +167,10 @@ data Structs : Type where
 cftySpec : FC -> CFType -> Core String
 cftySpec fc CFUnit = pure "void"
 cftySpec fc CFInt = pure "int"
-cftySpec fc CFUnsigned = pure "unsigned"
+cftySpec fc CFUnsigned8 = pure "unsigned-8"
+cftySpec fc CFUnsigned16 = pure "unsigned-16"
+cftySpec fc CFUnsigned32 = pure "unsigned-32"
+cftySpec fc CFUnsigned64 = pure "unsigned-64"
 cftySpec fc CFString = pure "string"
 cftySpec fc CFDouble = pure "double"
 cftySpec fc CFChar = pure "char"
@@ -359,7 +362,7 @@ startChezWinSh chez appdir target = unlines
     , "DIR=\"`realpath \"$0\"`\""
     , "CHEZ=$(cygpath \"" ++ chez ++"\")"
     , "export PATH=\"`dirname \"$DIR\"`/\"" ++ appdir ++ "\":$PATH\""
-    , "$CHEZ --script \"$(dirname \"$DIR\")/" ++ target ++ "\" \"$@\""
+    , "\"$CHEZ\" --script \"$(dirname \"$DIR\")/" ++ target ++ "\" \"$@\""
     ]
 
 ||| Compile a TT expression to Chez Scheme
@@ -382,8 +385,9 @@ compileToSS c appdir tm outfile
          main <- schExp chezExtPrim chezString 0 ctm
          chez <- coreLift findChez
          support <- readDataFile "chez/support.ss"
+         extraRuntime <- getExtraRuntime ds
          let scm = schHeader chez (map snd libs) ++
-                   support ++ code ++
+                   support ++ extraRuntime ++ code ++
                    concat (map fst fgndefs) ++
                    "(collect-request-handler (lambda () (collect) (blodwen-run-finalisers)))\n" ++
                    main ++ schFooter

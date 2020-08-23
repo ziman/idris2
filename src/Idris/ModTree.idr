@@ -16,6 +16,7 @@ import Idris.Parser
 import Idris.ProcessIdr
 import Idris.REPLCommon
 import Idris.Syntax
+import Idris.Pretty
 
 import Data.List
 import Data.StringMap
@@ -179,12 +180,11 @@ buildMod loc num len mod
         m <- newRef MD initMetadata
         put Syn initSyntax
 
-        let showMod = showSep "." (reverse (buildNS mod))
+        let showMod : Doc IdrisAnn = concatWith (surround dot) (pretty <$> reverse mod.buildNS)
 
         if needsBuilding
-           then do let msg = show num ++ "/" ++ show len ++
-                                   ": Building " ++ showMod ++
-                                   " (" ++ src ++ ")"
+           then do let msg : Doc IdrisAnn = pretty num <+> slash <+> pretty len <+> colon
+                               <++> pretty "Building" <++> showMod <++> parens (pretty src)
                    [] <- process {u} {m} msg src
                       | errs => do emitWarnings
                                    traverse emitError errs
@@ -223,12 +223,12 @@ buildDeps fname
                        clearCtxt; addPrimitives
                        put MD initMetadata
                        mainttc <- getTTCFileName fname "ttc"
-                       log 10 $ "Reloading " ++ show mainttc ++ " from " ++ fname
+                       log "import" 10 $ "Reloading " ++ show mainttc ++ " from " ++ fname
                        readAsMain mainttc
 
                        -- Load the associated metadata for interactive editing
                        mainttm <- getTTCFileName fname "ttm"
-                       log 10 $ "Reloading " ++ show mainttm
+                       log "import" 10 $ "Reloading " ++ show mainttm
                        readFromTTM mainttm
                        pure []
               errs => pure errs -- Error happened, give up

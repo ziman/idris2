@@ -194,21 +194,21 @@ getName _ [] = Nothing
 mutual
   export
   {vars : _} -> TTC (Binder (Term vars)) where
-    toBuf b (Lam c x ty) = do tag 0; toBuf b c; toBuf b x; toBuf b ty
-    toBuf b (Let c val ty) = do tag 1; toBuf b c; toBuf b val -- ; toBuf b ty
-    toBuf b (Pi c x ty) = do tag 2; toBuf b c; toBuf b x; toBuf b ty
-    toBuf b (PVar c p ty) = do tag 3; toBuf b c; toBuf b p; toBuf b ty
-    toBuf b (PLet c val ty) = do tag 4; toBuf b c; toBuf b val -- ; toBuf b ty
-    toBuf b (PVTy c ty) = do tag 5; toBuf b c -- ; toBuf b ty
+    toBuf b (Lam _ c x ty) = do tag 0; toBuf b c; toBuf b x; toBuf b ty
+    toBuf b (Let _ c val ty) = do tag 1; toBuf b c; toBuf b val -- ; toBuf b ty
+    toBuf b (Pi _ c x ty) = do tag 2; toBuf b c; toBuf b x; toBuf b ty
+    toBuf b (PVar _ c p ty) = do tag 3; toBuf b c; toBuf b p; toBuf b ty
+    toBuf b (PLet _ c val ty) = do tag 4; toBuf b c; toBuf b val -- ; toBuf b ty
+    toBuf b (PVTy _ c ty) = do tag 5; toBuf b c -- ; toBuf b ty
 
     fromBuf b
         = case !getTag of
-               0 => do c <- fromBuf b; x <- fromBuf b; ty <- fromBuf b; pure (Lam c x ty)
-               1 => do c <- fromBuf b; x <- fromBuf b; pure (Let c x (Erased emptyFC False))
-               2 => do c <- fromBuf b; x <- fromBuf b; y <- fromBuf b; pure (Pi c x y)
-               3 => do c <- fromBuf b; p <- fromBuf b; ty <- fromBuf b; pure (PVar c p ty)
-               4 => do c <- fromBuf b; x <- fromBuf b; pure (PLet c x (Erased emptyFC False))
-               5 => do c <- fromBuf b; pure (PVTy c (Erased emptyFC False))
+               0 => do c <- fromBuf b; x <- fromBuf b; ty <- fromBuf b; pure (Lam emptyFC c x ty)
+               1 => do c <- fromBuf b; x <- fromBuf b; pure (Let emptyFC c x (Erased emptyFC False))
+               2 => do c <- fromBuf b; x <- fromBuf b; y <- fromBuf b; pure (Pi emptyFC c x y)
+               3 => do c <- fromBuf b; p <- fromBuf b; ty <- fromBuf b; pure (PVar emptyFC c p ty)
+               4 => do c <- fromBuf b; x <- fromBuf b; pure (PLet emptyFC c x (Erased emptyFC False))
+               5 => do c <- fromBuf b; pure (PVTy emptyFC c (Erased emptyFC False))
                _ => corrupt "Binder"
 
   export
@@ -675,35 +675,41 @@ export
 TTC CFType where
   toBuf b CFUnit = tag 0
   toBuf b CFInt = tag 1
-  toBuf b CFUnsigned = tag 2
-  toBuf b CFString = tag 3
-  toBuf b CFDouble = tag 4
-  toBuf b CFChar = tag 5
-  toBuf b CFPtr = tag 6
-  toBuf b CFWorld = tag 7
-  toBuf b (CFFun s t) = do tag 8; toBuf b s; toBuf b t
-  toBuf b (CFIORes t) = do tag 9; toBuf b t
-  toBuf b (CFStruct n a) = do tag 10; toBuf b n; toBuf b a
-  toBuf b (CFUser n a) = do tag 11; toBuf b n; toBuf b a
-  toBuf b CFGCPtr = tag 12
-  toBuf b CFBuffer = tag 13
+  toBuf b CFUnsigned8 = tag 2
+  toBuf b CFUnsigned16 = tag 3
+  toBuf b CFUnsigned32 = tag 4
+  toBuf b CFUnsigned64 = tag 5
+  toBuf b CFString = tag 6
+  toBuf b CFDouble = tag 7
+  toBuf b CFChar = tag 8
+  toBuf b CFPtr = tag 9
+  toBuf b CFWorld = tag 10
+  toBuf b (CFFun s t) = do tag 11; toBuf b s; toBuf b t
+  toBuf b (CFIORes t) = do tag 12; toBuf b t
+  toBuf b (CFStruct n a) = do tag 13; toBuf b n; toBuf b a
+  toBuf b (CFUser n a) = do tag 14; toBuf b n; toBuf b a
+  toBuf b CFGCPtr = tag 15
+  toBuf b CFBuffer = tag 16
 
   fromBuf b
       = case !getTag of
              0 => pure CFUnit
              1 => pure CFInt
-             2 => pure CFUnsigned
-             3 => pure CFString
-             4 => pure CFDouble
-             5 => pure CFChar
-             6 => pure CFPtr
-             7 => pure CFWorld
-             8 => do s <- fromBuf b; t <- fromBuf b; pure (CFFun s t)
-             9 => do t <- fromBuf b; pure (CFIORes t)
-             10 => do n <- fromBuf b; a <- fromBuf b; pure (CFStruct n a)
-             11 => do n <- fromBuf b; a <- fromBuf b; pure (CFUser n a)
-             12 => pure CFGCPtr
-             13 => pure CFBuffer
+             2 => pure CFUnsigned8
+             3 => pure CFUnsigned16
+             4 => pure CFUnsigned32
+             5 => pure CFUnsigned64
+             6 => pure CFString
+             7 => pure CFDouble
+             8 => pure CFChar
+             9 => pure CFPtr
+             10 => pure CFWorld
+             11 => do s <- fromBuf b; t <- fromBuf b; pure (CFFun s t)
+             12 => do t <- fromBuf b; pure (CFIORes t)
+             13 => do n <- fromBuf b; a <- fromBuf b; pure (CFStruct n a)
+             14 => do n <- fromBuf b; a <- fromBuf b; pure (CFUser n a)
+             15 => pure CFGCPtr
+             16 => pure CFBuffer
              _ => corrupt "CFType"
 
 export

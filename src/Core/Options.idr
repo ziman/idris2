@@ -2,6 +2,7 @@ module Core.Options
 
 import Core.Core
 import Core.Name
+import public Core.Options.Log
 import Core.TT
 import Utils.Binary
 import Utils.Path
@@ -126,7 +127,8 @@ record Session where
   nobanner : Bool
   findipkg : Bool
   codegen : CG
-  logLevel : Nat
+  directives : List String
+  logLevel : LogLevels
   logTimings : Bool
   debugElabCheck : Bool -- do conversion check to verify results of elaborator
   dumpcases : Maybe String -- file to output compiled case trees
@@ -178,8 +180,9 @@ defaultPPrint = MkPPOpts False True False
 
 export
 defaultSession : Session
-defaultSession = MkSessionOpts False False False Chez 0 False False
-                               Nothing Nothing Nothing Nothing
+defaultSession = MkSessionOpts False False False Chez [] defaultLogLevel
+                               False False Nothing Nothing
+                               Nothing Nothing
 
 export
 defaultElab : ElabDirectives

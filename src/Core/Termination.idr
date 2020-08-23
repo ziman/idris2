@@ -148,7 +148,7 @@ mutual
             !(findSC defs (b :: env) g (map (\ (p, tm) => (p, weaken tm)) pats) sc)
     where
       findSCbinder : Binder (Term vars) -> Core (List SCCall)
-      findSCbinder (Let c val ty) = findSC defs env g pats val
+      findSCbinder (Let _ c val ty) = findSC defs env g pats val
       findSCbinder b = pure [] -- only types, no need to look
   -- If we're Guarded and find a Delay, continue with the argument as InDelay
   findSC defs env Guarded pats (TDelay _ _ _ tm)
@@ -361,7 +361,7 @@ mutual
       = do Just gdef <- lookupCtxtExact fn_in (gamma defs)
                 | Nothing => throw (UndefinedName fc fn_in)
            let fn = fullname gdef
-           log 10 $ "Looking under " ++ show fn
+           log "termination" 10 $ "Looking under " ++ show fn
            aSmaller <- resolved (gamma defs) (NS ["Builtin"] (UN "assert_smaller"))
            cond [(fn == NS ["Builtin"] (UN "assert_total"), pure []),
               (caseFn fn,
@@ -381,9 +381,10 @@ mutual
                (vs ** (Env Term vs, List (Nat, Term vs), Term vs)) ->
                Core (List SCCall)
   findInCase defs g (_ ** (env, pats, tm))
-     = do logC 10 (do ps <- traverse toFullNames (map snd pats)
-                      pure ("Looking in case args " ++ show ps))
-          logTermNF 10 "        =" env tm
+     = do logC "termination" 10 $
+                   do ps <- traverse toFullNames (map snd pats)
+                      pure ("Looking in case args " ++ show ps)
+          logTermNF "termination" 10 "        =" env tm
           rhs <- normaliseOpts tcOnly defs env tm
           findSC defs env g pats (delazy defs rhs)
 
@@ -594,7 +595,7 @@ posArg defs tyns (NTCon _ tc _ _ args)
              then dropParams (S i) ps xs
              else x :: dropParams (S i) ps xs
 -- a tyn can not appear as part of ty
-posArg defs tyns (NBind fc x (Pi c e ty) sc)
+posArg defs tyns (NBind fc x (Pi _ _ e ty) sc)
     = if !(nameIn defs tyns ty)
          then pure (NotTerminating NotStrictlyPositive)
          else do sc' <- sc defs (toClosure defaultOpts [] (Erased fc False))
@@ -602,7 +603,7 @@ posArg defs tyns (NBind fc x (Pi c e ty) sc)
 posArg defs tyn _ = pure IsTerminating
 
 checkPosArgs : Defs -> List Name -> NF [] -> Core Terminating
-checkPosArgs defs tyns (NBind fc x (Pi c e ty) sc)
+checkPosArgs defs tyns (NBind fc x (Pi _ _ e ty) sc)
     = case !(posArg defs tyns ty) of
            IsTerminating =>
                 checkPosArgs defs tyns

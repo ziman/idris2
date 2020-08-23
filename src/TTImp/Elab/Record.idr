@@ -74,7 +74,7 @@ findFields defs con
            _ => pure Nothing
   where
     getExpNames : NF [] -> Core (List (String, Maybe Name, Maybe Name))
-    getExpNames (NBind fc x (Pi _ p ty) sc)
+    getExpNames (NBind fc x (Pi _ _ p ty) sc)
         = do rest <- getExpNames !(sc defs (toClosure defaultOpts [] (Erased fc False)))
              let imp = case p of
                             Explicit => Nothing
@@ -228,7 +228,7 @@ checkUpdate rig elabinfo nest env fc upds rec expected
                 let recty' = if delayed
                                 then gnf env exp
                                 else recty
-                logGlueNF 5 (show delayed ++ " record type " ++ show rec) env recty'
+                logGlueNF "elab.record" 5 (show delayed ++ " record type " ++ show rec) env recty'
                 rcase <- recUpdate rig elabinfo fc nest env upds rec recty'
-                log 5 $ "Record update: " ++ show rcase
+                log "elab.record" 5 $ "Record update: " ++ show rcase
                 check rig elabinfo nest env rcase expected

@@ -142,7 +142,10 @@ cType fc t = throw (GenericMsg fc ("Can't pass argument of type " ++ show t ++
 cftySpec : FC -> CFType -> Core String
 cftySpec fc CFUnit = pure "void"
 cftySpec fc CFInt = pure "int"
-cftySpec fc CFUnsigned = pure "unsigned-int"
+cftySpec fc CFUnsigned8 = pure "unsigned-char"
+cftySpec fc CFUnsigned16 = pure "unsigned-short"
+cftySpec fc CFUnsigned32 = pure "unsigned-int"
+cftySpec fc CFUnsigned64 = pure "unsigned-long"
 cftySpec fc CFString = pure "UTF-8-string"
 cftySpec fc CFDouble = pure "double"
 cftySpec fc CFChar = pure "char"
@@ -368,8 +371,10 @@ compileToSCM c tm outfile
          let code = fastAppend (map snd fgndefs ++ compdefs)
          main <- schExp gambitPrim gambitString 0 ctm
          support <- readDataFile "gambit/support.scm"
+         ds <- getDirectives Gambit
+         extraRuntime <- getExtraRuntime ds
          foreign <- readDataFile "gambit/foreign.scm"
-         let scm = showSep "\n" [schHeader, support, foreign, code, main]
+         let scm = showSep "\n" [schHeader, support, extraRuntime, foreign, code, main]
          Right () <- coreLift $ writeFile outfile scm
             | Left err => throw (FileErr outfile err)
          pure $ mapMaybe fst fgndefs

@@ -15,6 +15,8 @@ import Data.ANameMap
 import Data.List
 import Data.NameMap
 import Data.StringMap
+import Text.PrettyPrint.Prettyprinter
+import Text.PrettyPrint.Prettyprinter.Util
 
 %default covering
 
@@ -97,7 +99,7 @@ mutual
        PPostfixProjsSection : FC -> List PTerm -> List PTerm -> PTerm
 
        -- Debugging
-       PUnifyLog : FC -> Nat -> PTerm -> PTerm
+       PUnifyLog : FC -> LogLevel -> PTerm -> PTerm
 
        -- with-disambiguation
        PWithUnambigNames : FC -> List Name -> PTerm -> PTerm
@@ -220,7 +222,7 @@ mutual
   public export
   data Directive : Type where
        Hide : Name -> Directive
-       Logging : Nat -> Directive
+       Logging : LogLevel -> Directive
        LazyOn : Bool -> Directive
        UnboundImplicits : Bool -> Directive
        AmbigDepth : Nat -> Directive
@@ -360,6 +362,12 @@ Show REPLEval where
   show NormaliseAll = "normalise"
   show Execute = "execute"
 
+export
+Pretty REPLEval where
+  pretty EvalTC = pretty "typecheck"
+  pretty NormaliseAll = pretty "normalise"
+  pretty Execute = pretty "execute"
+
 public export
 data REPLOpt : Type where
      ShowImplicits : Bool -> REPLOpt
@@ -378,21 +386,31 @@ Show REPLOpt where
   show (Editor editor) = "editor = " ++ show editor
   show (CG str) = "cg = " ++ str
 
+export
+Pretty REPLOpt where
+  pretty (ShowImplicits impl) = pretty "showimplicits" <++> equals <++> pretty impl
+  pretty (ShowNamespace ns) = pretty "shownamespace" <++> equals <++> pretty ns
+  pretty (ShowTypes typs) = pretty "showtypes" <++> equals <++> pretty typs
+  pretty (EvalMode mod) = pretty "eval" <++> equals <++> pretty mod
+  pretty (Editor editor) = pretty "editor" <++> equals <++> pretty editor
+  pretty (CG str) = pretty "cg" <++> equals <++> pretty str
 
 public export
 data EditCmd : Type where
      TypeAt : Int -> Int -> Name -> EditCmd
      CaseSplit : Bool -> Int -> Int -> Name -> EditCmd
      AddClause : Bool -> Int -> Name -> EditCmd
-     ExprSearch : Bool -> Int -> Name -> List Name -> Bool -> EditCmd
-     GenerateDef : Bool -> Int -> Name -> EditCmd
+     ExprSearch : Bool -> Int -> Name -> List Name -> EditCmd
+     ExprSearchNext : EditCmd
+     GenerateDef : Bool -> Int -> Name -> Nat -> EditCmd
+     GenerateDefNext : EditCmd
      MakeLemma : Bool -> Int -> Name -> EditCmd
      MakeCase : Bool -> Int -> Name -> EditCmd
      MakeWith : Bool -> Int -> Name -> EditCmd
 
 public export
 data REPLCmd : Type where
-     NewDefn : List PDecl -> REPLCmd 
+     NewDefn : List PDecl -> REPLCmd
      Eval : PTerm -> REPLCmd
      Check : PTerm -> REPLCmd
      PrintDef : Name -> REPLCmd
@@ -407,13 +425,16 @@ data REPLCmd : Type where
      DebugInfo : Name -> REPLCmd
      SetOpt : REPLOpt -> REPLCmd
      GetOpts : REPLCmd
+     CGDirective : String -> REPLCmd
      CD : String -> REPLCmd
      CWD: REPLCmd
      Missing : Name -> REPLCmd
      Total : Name -> REPLCmd
      Doc : Name -> REPLCmd
      Browse : List String -> REPLCmd
-     SetLog : Nat -> REPLCmd
+     SetLog : LogLevel -> REPLCmd
+     SetConsoleWidth : Maybe Nat -> REPLCmd
+     SetColor : Bool -> REPLCmd
      Metavars : REPLCmd
      Editing : EditCmd -> REPLCmd
      ShowVersion : REPLCmd
@@ -586,7 +607,7 @@ mutual
         = "[" ++ showPrec d start ++ " .. ]"
     showPrec d (PRangeStream _ start (Just next))
         = "[" ++ showPrec d start ++ ", " ++ showPrec d next ++ " .. ]"
-    showPrec d (PUnifyLog _ lvl tm) = showPrec d tm
+    showPrec d (PUnifyLog _ _ tm) = showPrec d tm
     showPrec d (PPostfixProjs fc rec fields)
         = showPrec d rec ++ concatMap (\n => "." ++ show n) fields
     showPrec d (PPostfixProjsSection fc fields args)

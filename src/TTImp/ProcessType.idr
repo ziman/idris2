@@ -23,7 +23,7 @@ import Data.NameMap
 %default covering
 
 getRetTy : Defs -> NF [] -> Core Name
-getRetTy defs (NBind fc _ (Pi _ _ _) sc)
+getRetTy defs (NBind fc _ (Pi _ _ _ _) sc)
     = getRetTy defs !(sc defs (toClosure defaultOpts [] (Erased fc False)))
 getRetTy defs (NTCon _ n _ _ _) = pure n
 getRetTy defs ty
@@ -76,7 +76,7 @@ processFnOpt fc ndef (SpecArgs ns)
 
     -- Collect the argument names which the dynamic args depend on
     collectDDeps : NF [] -> Core (List Name)
-    collectDDeps (NBind tfc x (Pi _ _ nty) sc)
+    collectDDeps (NBind tfc x (Pi _ _ _ nty) sc)
         = do defs <- get Ctxt
              empty <- clearDefs defs
              sc' <- sc defs (toClosure defaultOpts [] (Ref tfc Bound x))
@@ -100,7 +100,7 @@ processFnOpt fc ndef (SpecArgs ns)
 
       getDeps : Bool -> NF [] -> NameMap Bool ->
                 Core (NameMap Bool)
-      getDeps inparam (NBind _ x (Pi _ _ pty) sc) ns
+      getDeps inparam (NBind _ x (Pi _ _ _ pty) sc) ns
           = do ns' <- getDeps inparam pty ns
                defs <- get Ctxt
                sc' <- sc defs (toClosure defaultOpts [] (Erased fc False))
@@ -146,7 +146,7 @@ processFnOpt fc ndef (SpecArgs ns)
                                -- We're assuming  it's a short list, so just use
                                -- List and don't worry about duplicates.
                   List (Name, Nat) -> NF [] -> Core (List Nat)
-    collectSpec acc ddeps ps (NBind tfc x (Pi _ _ nty) sc)
+    collectSpec acc ddeps ps (NBind tfc x (Pi _ _ _ nty) sc)
         = do defs <- get Ctxt
              empty <- clearDefs defs
              sc' <- sc defs (toClosure defaultOpts [] (Ref tfc Bound x))
@@ -165,7 +165,7 @@ processFnOpt fc ndef (SpecArgs ns)
     collectSpec acc ddeps ps _ = pure acc
 
     getNamePos : Nat -> NF [] -> Core (List (Name, Nat))
-    getNamePos i (NBind tfc x (Pi _ _ _) sc)
+    getNamePos i (NBind tfc x (Pi _ _ _ _) sc)
         = do defs <- get Ctxt
              ns' <- getNamePos (1 + i) !(sc defs (toClosure defaultOpts [] (Erased tfc False)))
              pure ((x, i) :: ns')
@@ -238,7 +238,7 @@ findInferrable defs ty = fi 0 0 [] [] ty
       findInfs acc pos (n :: ns) = findInf !(findInfs acc pos ns) pos n
 
     fi : Nat -> Int -> List (Name, Nat) -> List Nat -> NF [] -> Core (List Nat)
-    fi pos i args acc (NBind fc x (Pi _ _ aty) sc)
+    fi pos i args acc (NBind fc x (Pi _ _ _ aty) sc)
         = do let argn = MN "inf" i
              sc' <- sc defs (toClosure defaultOpts [] (Ref fc Bound argn))
              acc' <- findInf acc args aty
@@ -257,21 +257,21 @@ processType : {vars : _} ->
 processType {vars} eopts nest env fc rig vis opts (MkImpTy tfc n_in ty_raw)
     = do n <- inCurrentNS n_in
 
-         log 1 $ "Processing " ++ show n
-         log 5 $ "Checking type decl " ++ show n ++ " : " ++ show ty_raw
+         log "declare.type" 1 $ "Processing " ++ show n
+         log "declare.type" 5 $ "Checking type decl " ++ show n ++ " : " ++ show ty_raw
          idx <- resolveName n
 
          -- Check 'n' is undefined
          defs <- get Ctxt
          Nothing <- lookupCtxtExact (Resolved idx) (gamma defs)
-              | Just _ => throw (AlreadyDefined fc n)
+              | Just gdef => throw (AlreadyDefined fc n)
 
          ty <-
              wrapErrorC eopts (InType fc n) $
                    checkTerm idx InType (HolesOkay :: eopts) nest env
                              (IBindHere fc (PI erased) ty_raw)
                              (gType fc)
-         logTermNF 3 ("Type of " ++ show n) [] (abstractFullEnvType tfc env ty)
+         logTermNF "declare.type" 3 ("Type of " ++ show n) [] (abstractFullEnvType tfc env ty)
 
          def <- initDef n env ty opts
          let fullty = abstractFullEnvType tfc env ty
@@ -292,7 +292,7 @@ processType {vars} eopts nest env fc rig vis opts (MkImpTy tfc n_in ty_raw)
          -- level check so don't set the flag.
          when (not (InCase `elem` eopts)) $ setLinearCheck idx True
 
-         log 2 $ "Setting options for " ++ show n ++ ": " ++ show opts
+         log "declare.type" 2 $ "Setting options for " ++ show n ++ ": " ++ show opts
          traverse (processFnOpt fc (Resolved idx)) opts
 
          -- Add to the interactive editing metadata
@@ -301,7 +301,7 @@ processType {vars} eopts nest env fc rig vis opts (MkImpTy tfc n_in ty_raw)
 
          traverse_ addToSave (keys (getMetas ty))
          addToSave n
-         log 10 $ "Saving from " ++ show n ++ ": " ++ show (keys (getMetas ty))
+         log "declare.type" 10 $ "Saving from " ++ show n ++ ": " ++ show (keys (getMetas ty))
 
          when (vis /= Private) $
               do addHashWithNames n

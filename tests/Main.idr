@@ -2,6 +2,7 @@ module Main
 
 import Data.Maybe
 import Data.List
+import Data.List1
 import Data.Strings
 
 import System
@@ -40,7 +41,7 @@ idrisTests
        "basic026", "basic027", "basic028", "basic029", "basic030",
        "basic031", "basic032", "basic033", "basic034", "basic035",
        "basic036", "basic037", "basic038", "basic039", "basic040",
-       "basic041",
+       "basic041", "basic042", "basic043", "basic044",
        -- Coverage checking
        "coverage001", "coverage002", "coverage003", "coverage004",
        "coverage005", "coverage006", "coverage007", "coverage008",
@@ -57,7 +58,8 @@ idrisTests
        "interactive001", "interactive002", "interactive003", "interactive004",
        "interactive005", "interactive006", "interactive007", "interactive008",
        "interactive009", "interactive010", "interactive011", "interactive012",
-       "interactive013", "interactive014",
+       "interactive013", "interactive014", "interactive015", "interactive016",
+       "interactive017", "interactive018",
        -- Interfaces
        "interface001", "interface002", "interface003", "interface004",
        "interface005", "interface006", "interface007", "interface008",
@@ -82,7 +84,7 @@ idrisTests
        "params001",
        -- Performance: things which have been slow in the past, or which
        -- pose interesting challenges for the elaborator
-       "perf001", "perf002", "perf003", "perf004",
+       "perf001", "perf002", "perf003", "perf004", "perf005",
        -- Parse errors
        "perror001", "perror002", "perror003", "perror004", "perror005",
        "perror006",
@@ -96,12 +98,13 @@ idrisTests
        -- Quotation and reflection
        "reflection001", "reflection002", "reflection003", "reflection004",
        "reflection005", "reflection006", "reflection007", "reflection008",
+       "reflection009",
        -- Miscellaneous regressions
        "reg001", "reg002", "reg003", "reg004", "reg005", "reg006", "reg007",
        "reg008", "reg009", "reg010", "reg011", "reg012", "reg013", "reg014",
        "reg015", "reg016", "reg017", "reg018", "reg019", "reg020", "reg021",
        "reg022", "reg023", "reg024", "reg025", "reg026", "reg027", "reg028",
-       "reg029", "reg030", "reg031", "reg032",
+       "reg029", "reg030", "reg031", "reg032", "reg033", "reg034",
        -- Totality checking
        "total001", "total002", "total003", "total004", "total005",
        "total006", "total007", "total008", "total009",
@@ -122,14 +125,14 @@ chezTests
       "chez007", "chez008", "chez009", "chez010", "chez011", "chez012",
       "chez013", "chez014", "chez015", "chez016", "chez017", "chez018",
       "chez019", "chez020", "chez021", "chez022", "chez023", "chez024",
-      "chez025", "chez026", "chez027",
+      "chez025", "chez026", "chez027", "chez028", "chez029", "chez030",
       "reg001"]
 
 nodeTests : List String
 nodeTests
   = [ "node001", "node002", "node003", "node004", "node005", "node006", "node007", "node008", "node009"
     , "node011", "node012", "node015", "node017", "node018", "node019" -- node014
-    , "node021" --, "node020"
+    , "node021", "node022" --, "node020"
     , "reg001"
     , "syntax001"
     , "tailrec001"
@@ -138,6 +141,10 @@ nodeTests
 ideModeTests : List String
 ideModeTests
   =  [ "ideMode001", "ideMode002", "ideMode003" ]
+
+preludeTests : List String
+preludeTests
+  =  [ "reg001" ]
 
 ------------------------------------------------------------------------
 -- Options
@@ -242,10 +249,7 @@ runTest opts testPath
                      | Left err => do print err
                                       pure False
                  let result = normalize out == normalize exp
-                 -- The issue #116 that made this necessary is fixed, but
-                 -- please resist putting 'result' here until it's also
-                 -- fixed in Idris2-boot!
-                 if normalize out == normalize exp
+                 if result
                     then putStrLn "success"
                     else do
                       putStrLn "FAILURE"
@@ -269,7 +273,7 @@ firstExists (x :: xs) = if !(exists x) then pure (Just x) else firstExists xs
 pathLookup : List String -> IO (Maybe String)
 pathLookup names = do
   path <- getEnv "PATH"
-  let pathList = split (== pathSeparator) $ fromMaybe "/usr/bin:/usr/local/bin" path
+  let pathList = List1.toList $ split (== pathSeparator) $ fromMaybe "/usr/bin:/usr/local/bin" path
   let candidates = [p ++ "/" ++ x | p <- pathList,
                                     x <- names]
   firstExists candidates
@@ -315,11 +319,12 @@ main
               | _ => do print args
                         putStrLn usage
          let filteredNonCGTests =
-              filterTests opts $ concat
+              filterTests opts $ concat $ the (List (List String))
                  [ testPaths "ttimp" ttimpTests
                  , testPaths "idris2" idrisTests
                  , testPaths "typedd-book" typeddTests
                  , testPaths "ideMode" ideModeTests
+                 , testPaths "prelude" preludeTests
                  ]
          let filteredChezTests = filterTests opts (testPaths "chez" chezTests)
          let filteredNodeTests = filterTests opts (testPaths "node" nodeTests)

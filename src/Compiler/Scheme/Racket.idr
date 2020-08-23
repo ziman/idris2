@@ -109,7 +109,10 @@ data Done : Type where
 cftySpec : FC -> CFType -> Core String
 cftySpec fc CFUnit = pure "_void"
 cftySpec fc CFInt = pure "_int"
-cftySpec fc CFUnsigned = pure "_uint"
+cftySpec fc CFUnsigned8 = pure "_uint8"
+cftySpec fc CFUnsigned16 = pure "_uint16"
+cftySpec fc CFUnsigned32 = pure "_uint32"
+cftySpec fc CFUnsigned64 = pure "_uint64"
 cftySpec fc CFString = pure "_string/utf-8"
 cftySpec fc CFDouble = pure "_double"
 cftySpec fc CFChar = pure "_int8"
@@ -369,8 +372,10 @@ compileToRKT c appdir tm outfile
          let code = fastAppend (map snd fgndefs ++ compdefs)
          main <- schExp racketPrim racketString 0 ctm
          support <- readDataFile "racket/support.rkt"
+         ds <- getDirectives Racket
+         extraRuntime <- getExtraRuntime ds
          let scm = schHeader (concat (map fst fgndefs)) ++
-                   support ++ code ++
+                   support ++ extraRuntime ++ code ++
                    "(void " ++ main ++ ")\n" ++
                    schFooter
          Right () <- coreLift $ writeFile outfile scm
