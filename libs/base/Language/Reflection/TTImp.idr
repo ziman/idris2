@@ -74,6 +74,7 @@ mutual
        -- at the end of elaborator
        Implicit : FC -> (bindIfUnsolved : Bool) -> TTImp
        IWithUnambigNames : FC -> List Name -> TTImp -> TTImp
+       IRecordField : FC -> Name -> TTImp  -- like IVar but disambiguates differently
 
   public export
   data IFieldUpdate : Type where

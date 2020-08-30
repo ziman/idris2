@@ -126,6 +126,10 @@ checkTerm rig elabinfo nest env (IVar fc n) exp
       -- type is expecting an implicit argument, so check it as an
       -- application with no arguments
       checkApp rig elabinfo nest env fc (IVar fc n) [] [] exp
+checkTerm rig elabinfo nest env (IRecordField fc n) exp
+    -- for purposes of typechecking, this is an IVar
+    -- the typechecker does some further magic with this
+    = checkTerm rig elabinfo nest env (IVar fc n) exp
 checkTerm rig elabinfo nest env (IPi fc r p Nothing argTy retTy) exp
     = do n <- case p of
                    Explicit => genVarName "arg"

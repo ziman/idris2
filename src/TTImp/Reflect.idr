@@ -86,6 +86,10 @@ mutual
                     => do fc' <- reify defs !(evalClosure defs fc)
                           n' <- reify defs !(evalClosure defs n)
                           pure (IVar fc' n')
+               (NS _ (UN "IRecordField"), [fc, n])
+                    => do fc' <- reify defs !(evalClosure defs fc)
+                          n' <- reify defs !(evalClosure defs n)
+                          pure (IRecordField fc' n')
                (NS _ (UN "IPi"), [fc, c, p, mn, aty, rty])
                     => do fc' <- reify defs !(evalClosure defs fc)
                           c' <- reify defs !(evalClosure defs c)
@@ -434,6 +438,10 @@ mutual
         = do fc' <- reflect fc defs lhs env tfc
              n' <- reflect fc defs lhs env n
              appCon fc defs (reflectionttimp "IVar") [fc', n']
+    reflect fc defs lhs env (IRecordField tfc n)
+        = do fc' <- reflect fc defs lhs env tfc
+             n' <- reflect fc defs lhs env n
+             appCon fc defs (reflectionttimp "IRecordField") [fc', n']
     reflect fc defs lhs env (IPi tfc c p mn aty rty)
         = do fc' <- reflect fc defs lhs env tfc
              c' <- reflect fc defs lhs env c

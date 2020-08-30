@@ -285,6 +285,7 @@ mutual
 
   toPTerm p (IWithUnambigNames fc ns rhs) =
     PWithUnambigNames fc ns <$> toPTerm startPrec rhs
+  toPTerm p (IRecordField fc n) = toPTerm p (IVar fc n)
 
   mkApp : {auto c : Ref Ctxt Defs} ->
           {auto s : Ref Syn SyntaxInfo} ->
