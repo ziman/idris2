@@ -111,6 +111,9 @@ mutual
        -- with-disambiguation
        IWithUnambigNames : FC -> List Name -> RawImp -> RawImp
 
+       -- Like IVar but disambiguates differently (locals don't override globals)
+       IRecordField : FC -> Name -> RawImp
+
   public export
   data IFieldUpdate : Type where
        ISetField : (path : List String) -> RawImp -> IFieldUpdate
@@ -178,6 +181,7 @@ mutual
       show (Implicit fc True) = "_"
       show (Implicit fc False) = "?"
       show (IWithUnambigNames fc ns rhs) = "(%with " ++ show ns ++ " " ++ show rhs ++ ")"
+      show (IRecordField fc n) = show n
 
   export
   Show IFieldUpdate where
@@ -602,6 +606,7 @@ getFC (IRunElab x _) = x
 getFC (IAs x _ _ _) = x
 getFC (Implicit x _) = x
 getFC (IWithUnambigNames x _ _) = x
+getFC (IRecordField x _) = x
 
 export
 apply : RawImp -> List RawImp -> RawImp
@@ -695,6 +700,8 @@ mutual
         = do tag 29; toBuf b fc; toBuf b i
     toBuf b (IWithUnambigNames fc ns rhs)
         = do tag 30; toBuf b ns; toBuf b rhs
+    toBuf b (IRecordField fc n)
+        = do tag 31; toBuf b fc; toBuf b n
 
     fromBuf b
         = case !getTag of
@@ -785,6 +792,9 @@ mutual
                         ns <- fromBuf b
                         rhs <- fromBuf b
                         pure (IWithUnambigNames fc ns rhs)
+               31 => do fc <- fromBuf b
+                        n <- fromBuf b
+                        pure (IRecordField fc n)
                _ => corrupt "RawImp"
 
   export
