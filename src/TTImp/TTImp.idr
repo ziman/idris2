@@ -694,7 +694,7 @@ mutual
     toBuf b (Implicit fc i)
         = do tag 29; toBuf b fc; toBuf b i
     toBuf b (IWithUnambigNames fc ns rhs)
-        = do tag 30; toBuf b ns; toBuf b rhs
+        = do tag 30; toBuf b fc; toBuf b ns; toBuf b rhs
 
     fromBuf b
         = case !getTag of
