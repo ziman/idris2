@@ -9,6 +9,7 @@ import Core.Hash
 import Core.Context
 import Core.Directory
 import Core.Name
+import Core.Name.Namespace
 import Core.Options
 import Core.TT
 import Utils.Hex
@@ -119,7 +120,7 @@ mlfGlobalVar n = text "$" <+> mlfGlobalName n
 
 -- returns MLF module name
 mlfNS : Name -> String
-mlfNS (NS ns n) = "Mod_" ++ show ns
+mlfNS (NS ns n) = "Mod_" ++ concat (intersperse "_" $ reverse $ unsafeUnfoldNamespace ns)
 mlfNS n = "Misc"
 
 record ModuleName where
