@@ -119,7 +119,7 @@ mlfGlobalVar n = text "$" <+> mlfGlobalName n
 
 -- returns MLF module name
 mlfNS : Name -> String
-mlfNS (NS ns n) = "Mod_" ++ concat (intersperse "_" $ reverse ns)
+mlfNS (NS ns n) = "Mod_" ++ show ns
 mlfNS n = "Misc"
 
 record ModuleName where
