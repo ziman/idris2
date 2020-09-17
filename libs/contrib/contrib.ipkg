@@ -25,6 +25,8 @@ modules = Control.ANSI,
 
           Data.Fin.Extra,
 
+          Data.Fun.Extra,
+
           Data.Logic.Propositional,
 
           Data.Morphisms.Algebra,
@@ -38,6 +40,7 @@ modules = Control.ANSI,
 
           Data.SortedMap,
           Data.SortedSet,
+          Data.Stream.Extra,
           Data.String.Extra,
           Data.String.Interpolation,
           Data.String.Parser,
@@ -46,7 +49,14 @@ modules = Control.ANSI,
 
           Data.Vect.Sort,
 
+          Data.Void,
+
+          Data.HVect,
+
           Debug.Buffer,
+
+          Decidable.Order.Strict,
+          Decidable.Decidable.Extra,
 
           Language.JSON,
           Language.JSON.Data,

@@ -31,13 +31,10 @@ import Utils.String
 -- | Add binding site information if the term is simply a machine-inserted name
 pShowMN : {vars : _} -> Term vars -> Env t vars -> Doc IdrisAnn -> Doc IdrisAnn
 pShowMN t env acc = case t of
-  Local fc _ idx p => case dropAllNS (nameAt idx p) of
+  Local fc _ idx p => case dropAllNS (nameAt p) of
       MN _ _ => acc <++> parens ("implicitly bound at" <++> pretty (getBinderLoc p env))
       _ => acc
   _ => acc
-
-joinNs : List String -> Doc (IdrisAnn)
-joinNs ns = concatWith (surround dot) (pretty <$> reverse ns)
 
 pshow : {vars : _} ->
         {auto c : Ref Ctxt Defs} ->
@@ -95,7 +92,7 @@ ploc2 (MkFC fn1 s1 e1) (MkFC fn2 s2 e2) =
        let (sr2, sc2) = bimap (fromInteger . cast) s2
        let (er1, ec1) = bimap (fromInteger . cast) e1
        let (er2, ec2) = bimap (fromInteger . cast) e2
-       if (er2 > er1 + 5)
+       if (er2 > the Nat (er1 + 5))
           then pure $ !(ploc (MkFC fn1 s1 e1)) <+> line <+> !(ploc (MkFC fn2 s2 e2))
           else do let nsize = length $ show (er2 + 1)
                   let head = annotate FileCtxt (pretty $ MkFC fn1 s1 e2)
@@ -197,7 +194,7 @@ perror (UndefinedName fc x)
     = pure $ errorDesc (reflow "Undefined name" <++> code (pretty x) <+> dot) <++> line <+> !(ploc fc)
 perror (InvisibleName fc n (Just ns))
     = pure $ errorDesc ("Name" <++> code (pretty n) <++> reflow "is inaccessible since"
-        <++> code (joinNs ns) <++> reflow "is not explicitly imported.")
+        <++> code (pretty ns) <++> reflow "is not explicitly imported.")
         <+> line <+> !(ploc fc)
         <+> line <+> reflow "Suggestion: add an explicit" <++> keyword "export" <++> "or" <++> keyword ("public" <++> "export")
         <++> reflow "modifier. By default, all names are" <++> keyword "private" <++> reflow "in namespace blocks."
@@ -417,12 +414,19 @@ perror (FileErr fname err)
 perror (ParseFail _ err)
     = pure $ pretty err
 perror (ModuleNotFound fc ns)
-    = pure $ errorDesc ("Module" <++> annotate FileCtxt (joinNs ns) <++> reflow "not found") <+> line <+> !(ploc fc)
+    = pure $ errorDesc ("Module" <++> annotate FileCtxt (pretty ns) <++> reflow "not found") <+> line <+> !(ploc fc)
 perror (CyclicImports ns)
-    = pure $ errorDesc (reflow "Module imports form a cycle" <+> colon) <++> concatWith (surround (pretty " -> ")) (joinNs <$> ns)
+    = pure $ errorDesc (reflow "Module imports form a cycle" <+> colon) <++> concatWith (surround (pretty " -> ")) (pretty <$> ns)
 perror ForceNeeded = pure $ errorDesc (reflow "Internal error when resolving implicit laziness")
 perror (InternalError str) = pure $ errorDesc (reflow "INTERNAL ERROR" <+> colon) <++> pretty str
 perror (UserError str) = pure $ errorDesc (pretty "Error" <+> colon) <++> pretty str
+perror (NoForeignCC fc) = do
+    let cgs = fst <$> availableCGs (options !(get Ctxt))
+    let res = vsep [ errorDesc (reflow "The given specifier was not accepted by any backend. Available backends" <+> colon)
+                   , indent 2 (concatWith (\x,y => x <+> ", " <+> y) (map reflow cgs))
+                   , reflow "Some backends have additional specifier rules, refer to their documentation."
+                   ] <+> line <+> !(ploc fc)
+    pure res
 
 perror (InType fc n err)
     = pure $ hsep [ errorDesc (reflow "While processing type of" <++> code (pretty !(prettyName n))) <+> dot

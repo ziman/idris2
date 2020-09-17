@@ -56,7 +56,7 @@ addConstToPreamble name def =
     addToPreamble name newName v
 
 requireSafe : String -> String
-requireSafe = pack . map (\c => case c of 
+requireSafe = pack . map (\c => case c of
                                      '@' => '_'
                                      '/' => '_'
                                      '-' => '_'
@@ -87,7 +87,7 @@ keywordSafe "var" = "var_"
 keywordSafe s = s
 
 jsName : Name -> String
-jsName (NS ns n) = showSep "_" (reverse ns) ++ "_" ++ jsName n
+jsName (NS ns n) = showNSWithSep "_" ns ++ "_" ++ jsName n
 jsName (UN n) = keywordSafe $ jsIdent n
 jsName (MN n i) = jsIdent n ++ "_" ++ show i
 jsName (PV n d) = "pat__" ++ jsName n
@@ -336,10 +336,6 @@ jsPrim (NS _ (UN "prim__os")) [] =
     let oscalc = "(o => o === 'linux'?'unix':o==='win32'?'windows':o)"
     sysos <- addConstToPreamble "sysos" (oscalc ++ "(" ++ os ++ ".platform())")
     pure sysos
-jsPrim  (NS _ (UN "prim__schemeCall"))[_, fn, args, _] =
-  case fn of
-    "'string-append'" => pure $ "''.concat(...__prim_idris2js_FArgList("++ args ++"))"
-    o => throw (InternalError $ "schemeCall not implemented " ++ show o)
 jsPrim x args = throw $ InternalError $ "prim not implemented: " ++ (show x)
 
 tag2es : Either Int String -> String
@@ -384,7 +380,7 @@ mutual
   imperative2es indent (FunDecl fc n args body) =
     pure $ nSpaces indent ++ "function " ++ jsName n ++ "(" ++ showSep ", " (map jsName args) ++ "){//"++ show fc ++"\n" ++
            !(imperative2es (indent+1) body) ++ "\n" ++ nSpaces indent ++ "}\n"
-  imperative2es indent (ForeignDecl n path) =
+  imperative2es indent (ForeignDecl fc n path args ret) =
     pure $ !(foreignDecl n path) ++ "\n"
   imperative2es indent (ReturnStatement x) =
     pure $ nSpaces indent ++ "return " ++ !(impExp2es x) ++ ";"

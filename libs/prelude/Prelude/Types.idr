@@ -247,6 +247,16 @@ Monad (Either e) where
     (Left n) >>= _ = Left n
     (Right r) >>= f = f r
 
+public export
+Foldable (Either e) where
+  foldr f acc (Left _) = acc
+  foldr f acc (Right x) = f x acc
+
+public export
+Traversable (Either e) where
+  traverse f (Left x)  = pure (Left x)
+  traverse f (Right x) = Right <$> f x
+
 -----------
 -- LISTS --
 -----------
@@ -442,6 +452,7 @@ pack (x :: xs) = strCons x (pack xs)
 %foreign
   "scheme:string-pack"
   "ML:Rts.String.pack"
+  "javascript:lambda:(xs)=>''.concat(...__prim_idris2js_array(xs))"
 prim__fastPack : List Char -> String
 
 export

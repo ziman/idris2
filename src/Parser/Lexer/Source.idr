@@ -14,6 +14,8 @@ import Utils.Hex
 import Utils.Octal
 import Utils.String
 
+import Core.Name
+
 %default total
 
 public export
@@ -26,8 +28,8 @@ data Token
   -- Identifiers
   | HoleIdent String
   | Ident String
-  | DotSepIdent (List1 String)  -- ident.ident
-  | DotIdent String             -- .ident
+  | DotSepIdent Namespace String -- ident.ident
+  | DotIdent String               -- .ident
   | Symbol String
   -- Comments
   | Comment String
@@ -49,7 +51,7 @@ Show Token where
   -- Identifiers
   show (HoleIdent x) = "hole identifier " ++ x
   show (Ident x) = "identifier " ++ x
-  show (DotSepIdent xs) = "namespaced identifier " ++ dotSep (List1.toList $ reverse xs)
+  show (DotSepIdent ns n) = "namespaced identifier " ++ show ns ++ "." ++ show n
   show (DotIdent x) = "dot+identifier " ++ x
   show (Symbol x) = "symbol " ++ x
   -- Comments
@@ -72,7 +74,7 @@ Pretty Token where
   -- Identifiers
   pretty (HoleIdent x) = reflow "hole identifier" <++> pretty x
   pretty (Ident x) = pretty "identifier" <++> pretty x
-  pretty (DotSepIdent xs) = reflow "namespaced identifier" <++> concatWith (surround dot) (pretty <$> reverse (List1.toList xs))
+  pretty (DotSepIdent ns n) = reflow "namespaced identifier" <++> pretty ns <+> dot <+> pretty n
   pretty (DotIdent x) = pretty "dot+identifier" <++> pretty x
   pretty (Symbol x) = pretty "symbol" <++> pretty x
   -- Comments
@@ -203,6 +205,20 @@ reservedSymbols
       ["%", "\\", ":", "=", "|", "|||", "<-", "->", "=>", "?", "!",
        "&", "**", "..", "~"]
 
+fromBinLit : String -> Integer
+fromBinLit str
+    = if length str <= 2
+         then 0
+         else let num = assert_total (strTail (strTail str)) in
+                fromBin . reverse . map castBin . unpack $ num
+    where
+      castBin : Char -> Integer
+      castBin '1' = 1; castBin _ = 0 -- This can only be '1' and '0' once lexed
+      fromBin : List Integer -> Integer
+      fromBin [] = 0
+      fromBin (0 :: xs) = 2 * fromBin xs
+      fromBin (1 :: xs) = 1 + (2 * fromBin xs)
+
 fromHexLit : String -> Integer
 fromHexLit str
   = if length str <= 2
@@ -230,6 +246,7 @@ rawTokens =
      (holeIdent, \x => HoleIdent (assert_total (strTail x)))] ++
     map (\x => (exact x, Symbol)) symbols ++
     [(doubleLit, \x => DoubleLit (cast x)),
+     (binLit, \x => IntegerLit (fromBinLit x)),
      (hexLit, \x => IntegerLit (fromHexLit x)),
      (octLit, \x => IntegerLit (fromOctLit x)),
      (digits, \x => IntegerLit (cast x)),
@@ -247,9 +264,9 @@ rawTokens =
     parseIdent x = if x `elem` keywords then Keyword x
                    else Ident x
     parseNamespace : String -> Token
-    parseNamespace ns = case List1.reverse . split (== '.') $ ns of
-                             [ident] => parseIdent ident
-                             ns      => DotSepIdent ns
+    parseNamespace ns = case mkNamespacedIdent ns of
+                             (Nothing, ident) => parseIdent ident
+                             (Just ns, n)     => DotSepIdent ns n
 
 export
 lexTo : (WithBounds Token -> Bool) ->

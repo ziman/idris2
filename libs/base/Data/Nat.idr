@@ -159,11 +159,11 @@ maximum (S n) (S m) = S (maximum n m)
 -- Proofs on S
 
 export
-eqSucc : (left, right : Nat) -> left = right -> S left = S right
+eqSucc : (0 left, right : Nat) -> left = right -> S left = S right
 eqSucc _ _ Refl = Refl
 
 export
-succInjective : (left, right : Nat) -> S left = S right -> left = right
+succInjective : (0 left, right : Nat) -> S left = S right -> left = right
 succInjective _ _ Refl = Refl
 
 export

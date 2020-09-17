@@ -4,6 +4,7 @@ modules = Control.App,
           Control.App.Console,
           Control.App.FileIO,
 
+          Control.Monad.Either,
           Control.Monad.Identity,
           Control.Monad.Reader,
           Control.Monad.ST,
@@ -41,6 +42,7 @@ modules = Control.App,
           Data.Strings,
           Data.Vect,
           Data.Vect.Elem,
+          Data.Vect.Quantifiers,
 
           Debug.Trace,
 

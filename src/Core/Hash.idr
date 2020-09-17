@@ -4,6 +4,7 @@ import Core.CaseTree
 import Core.TT
 
 import Data.List
+import Data.List1
 import Data.Strings
 import Data.String.Iterator
 
@@ -46,6 +47,10 @@ Hashable a => Hashable (List a) where
   hashWithSalt h (x :: xs) = hashWithSalt (h * 33 + hash x) xs
 
 export
+Hashable a => Hashable (List1 a) where
+  hashWithSalt h (x :: xs) = hashWithSalt (h * 33 + hash x) xs
+
+export
 Hashable a => Hashable (Maybe a) where
   hashWithSalt h Nothing = abs h
   hashWithSalt h (Just x) = hashWithSalt h x
@@ -53,6 +58,10 @@ Hashable a => Hashable (Maybe a) where
 export
 Hashable String where
   hashWithSalt h = Data.String.Iterator.foldl hashWithSalt h
+
+export
+Hashable Namespace where
+  hashWithSalt h ns = hashWithSalt h (unsafeUnfoldNamespace ns)
 
 export
 Hashable Name where

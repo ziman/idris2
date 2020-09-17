@@ -2,6 +2,7 @@ module Core.Termination
 
 import Core.CaseTree
 import Core.Context
+import Core.Context.Log
 import Core.Env
 import Core.Normalise
 import Core.TT
@@ -362,8 +363,8 @@ mutual
                 | Nothing => throw (UndefinedName fc fn_in)
            let fn = fullname gdef
            log "termination" 10 $ "Looking under " ++ show fn
-           aSmaller <- resolved (gamma defs) (NS ["Builtin"] (UN "assert_smaller"))
-           cond [(fn == NS ["Builtin"] (UN "assert_total"), pure []),
+           aSmaller <- resolved (gamma defs) (NS builtinNS (UN "assert_smaller"))
+           cond [(fn == NS builtinNS (UN "assert_total"), pure []),
               (caseFn fn,
                   do mps <- getCasePats defs fn pats args
                      case mps of
@@ -553,7 +554,8 @@ checkTerminating loc n
                     pure tot'
               t => pure t
 
-nameIn : Defs -> List Name -> NF [] -> Core Bool
+nameIn : {auto c : Ref Ctxt Defs} ->
+         Defs -> List Name -> NF [] -> Core Bool
 nameIn defs tyns (NBind fc x b sc)
     = if !(nameIn defs tyns (binderType b))
          then pure True
@@ -574,7 +576,8 @@ nameIn defs tyns _ = pure False
 
 -- Check an argument type doesn't contain a negative occurrence of any of
 -- the given type names
-posArg : Defs -> List Name -> NF [] -> Core Terminating
+posArg : {auto c : Ref Ctxt Defs} ->
+         Defs -> List Name -> NF [] -> Core Terminating
 -- a tyn can only appear in the parameter positions of
 -- tc; report positivity failure if it appears anywhere else
 posArg defs tyns (NTCon _ tc _ _ args)
@@ -582,8 +585,8 @@ posArg defs tyns (NTCon _ tc _ _ args)
              = case !(lookupDefExact tc (gamma defs)) of
                     Just (TCon _ _ params _ _ _ _ _) =>
                          dropParams 0 params args
-                    _ => args in
-          if !(anyM (nameIn defs tyns)
+                    _ => args
+      in if !(anyM (nameIn defs tyns)
                   !(traverse (evalClosure defs) testargs))
              then pure (NotTerminating NotStrictlyPositive)
              else pure IsTerminating
@@ -602,7 +605,8 @@ posArg defs tyns (NBind fc x (Pi _ _ e ty) sc)
                  posArg defs tyns sc'
 posArg defs tyn _ = pure IsTerminating
 
-checkPosArgs : Defs -> List Name -> NF [] -> Core Terminating
+checkPosArgs : {auto c : Ref Ctxt Defs} ->
+               Defs -> List Name -> NF [] -> Core Terminating
 checkPosArgs defs tyns (NBind fc x (Pi _ _ e ty) sc)
     = case !(posArg defs tyns ty) of
            IsTerminating =>

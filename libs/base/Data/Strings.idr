@@ -16,13 +16,20 @@ partial
 foldl1 : (a -> a -> a) -> List a -> a
 foldl1 f (x::xs) = foldl f x xs
 
--- This works quickly because when string-append builds the result, it allocates
+-- This works quickly because when string-concat builds the result, it allocates
 -- enough room in advance so there's only one allocation, rather than lots!
 %foreign
     "scheme:string-concat"
     "ML:Rts.Bytes.concat"
+    "javascript:lambda:(xs)=>''.concat(...__prim_idris2js_array(xs))"
+export
+fastConcat : List String -> String
+
+-- This is a deprecated alias for fastConcat for backwards compatibility
+-- (unfortunately, we don't have %deprecated yet).
 export
 fastAppend : List String -> String
+fastAppend = fastConcat
 
 ||| Splits a character list into a list of whitespace separated character lists.
 |||

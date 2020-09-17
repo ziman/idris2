@@ -1,6 +1,7 @@
 module TTImp.Elab.Rewrite
 
 import Core.Context
+import Core.Context.Log
 import Core.Core
 import Core.Env
 import Core.GetType
@@ -135,7 +136,7 @@ checkRewrite {vars} rigc elabinfo nest env fc rule tm (Just expected)
                                                         IVar fc rname,
                                                         tm])
                                 (Just (gnf env'
-                                         (weakenNs [rname, pname] expTy)))
+                                         (weakenNs (mkSizeOf [rname, pname]) expTy)))
                          ))
            rwty <- getTerm grwty
            pure (Bind fc pname pbind (Bind fc rname rbind rwtm),

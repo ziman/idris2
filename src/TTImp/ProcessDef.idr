@@ -3,6 +3,7 @@ module TTImp.ProcessDef
 import Core.CaseBuilder
 import Core.CaseTree
 import Core.Context
+import Core.Context.Log
 import Core.Core
 import Core.Coverage
 import Core.Env
@@ -29,11 +30,16 @@ import TTImp.WithClause
 import Data.Either
 import Data.List
 import Data.NameMap
+import Data.Strings
+import Data.Maybe
+
+import Text.PrettyPrint.Prettyprinter
 
 %default covering
 
 mutual
-  mismatchNF : {vars : _} ->
+  mismatchNF : {auto c : Ref Ctxt Defs} ->
+               {vars : _} ->
                Defs -> NF vars -> NF vars -> Core Bool
   mismatchNF defs (NTCon _ xn xt _ xargs) (NTCon _ yn yt _ yargs)
       = if xn /= yn
@@ -49,7 +55,8 @@ mutual
       = mismatchNF defs !(evalClosure defs x) !(evalClosure defs y)
   mismatchNF _ _ _ = pure False
 
-  mismatch : {vars : _} ->
+  mismatch : {auto c : Ref Ctxt Defs} ->
+             {vars : _} ->
              Defs -> (Closure vars, Closure vars) -> Core Bool
   mismatch defs (x, y)
       = mismatchNF defs !(evalClosure defs x) !(evalClosure defs y)
@@ -58,7 +65,8 @@ mutual
 -- the argument positions has different constructors at its head, then this
 -- is an impossible case, so return True
 export
-impossibleOK : {vars : _} ->
+impossibleOK : {auto c : Ref Ctxt Defs} ->
+               {vars : _} ->
                Defs -> NF vars -> NF vars -> Core Bool
 impossibleOK defs (NTCon _ xn xt xa xargs) (NTCon _ yn yt ya yargs)
     = if xn == yn
@@ -95,7 +103,8 @@ impossibleErrOK defs _ = pure False
 -- is, if we have a concrete thing, and we're expecting the same concrete
 -- thing, or a function of something, then we might have a match.
 export
-recoverable : {vars : _} ->
+recoverable : {auto c : Ref Ctxt Defs} ->
+              {vars : _} ->
               Defs -> NF vars -> NF vars -> Core Bool
 -- Unlike the above, any mismatch will do
 recoverable defs (NTCon _ xn xt xa xargs) (NTCon _ yn yt ya yargs)
@@ -196,7 +205,7 @@ findLinear top bound rig tm
           = findLinArg rig ty (p :: as)
       findLinArg rig (NBind _ x (Pi _ c _ _) sc) (Local {name=a} fc _ idx prf :: as)
           = do defs <- get Ctxt
-               let a = nameAt idx prf
+               let a = nameAt prf
                if idx < bound
                  then do sc' <- sc defs (toClosure defaultOpts [] (Ref fc Bound x))
                          pure $ (a, rigMult c rig) ::
@@ -352,10 +361,11 @@ checkClause : {vars : _} ->
               {auto c : Ref Ctxt Defs} ->
               {auto m : Ref MD Metadata} ->
               {auto u : Ref UST UState} ->
-              (mult : RigCount) -> (vis : Visibility) -> (hashit : Bool) ->
+              (mult : RigCount) -> (vis : Visibility) ->
+              (totreq : TotalReq) -> (hashit : Bool) ->
               Int -> List ElabOpt -> NestedNames vars -> Env Term vars ->
               ImpClause -> Core (Either RawImp Clause)
-checkClause mult vis hashit n opts nest env (ImpossibleClause fc lhs)
+checkClause mult vis totreq hashit n opts nest env (ImpossibleClause fc lhs)
     = do lhs_raw <- lhsInCurrentNS nest lhs
          handleUnify
            (do autoimp <- isUnboundImplicits
@@ -380,7 +390,7 @@ checkClause mult vis hashit n opts nest env (ImpossibleClause fc lhs)
                            if !(impossibleErrOK defs err)
                               then pure (Left lhs_raw)
                               else throw (ValidCase fc env (Right err)))
-checkClause {vars} mult vis hashit n opts nest env (PatClause fc lhs_in rhs)
+checkClause {vars} mult vis totreq hashit n opts nest env (PatClause fc lhs_in rhs)
     = do (_, (vars'  ** (sub', env', nest', lhstm', lhsty'))) <-
              checkLHS False mult hashit n opts nest env fc lhs_in
          let rhsMode = if isErased mult then InType else InExpr
@@ -405,7 +415,7 @@ checkClause {vars} mult vis hashit n opts nest env (PatClause fc lhs_in rhs)
 
          pure (Right (MkClause env' lhstm' rhstm))
 -- TODO: (to decide) With is complicated. Move this into its own module?
-checkClause {vars} mult vis hashit n opts nest env (WithClause fc lhs_in wval_raw flags cs)
+checkClause {vars} mult vis totreq hashit n opts nest env (WithClause fc lhs_in wval_raw flags cs)
     = do (lhs, (vars'  ** (sub', env', nest', lhspat, reqty))) <-
              checkLHS False mult hashit n opts nest env fc lhs_in
          let wmode
@@ -467,8 +477,9 @@ checkClause {vars} mult vis hashit n opts nest env (WithClause fc lhs_in wval_ra
          log "declare.def.clause" 5 $ "Argument names " ++ show wargNames
 
          wname <- genWithName !(prettyName !(toFullNames (Resolved n)))
-         widx <- addDef wname (newDef fc wname (if isErased mult then erased else top)
-                                      vars wtype vis None)
+         widx <- addDef wname (record {flags $= (SetTotal totreq ::)}
+                                    (newDef fc wname (if isErased mult then erased else top)
+                                      vars wtype vis None))
          let rhs_in = apply (IVar fc wname)
                         (map (IVar fc) envns ++
                          map (maybe wval_raw (\pn => IVar fc (snd pn))) wargNames)
@@ -607,7 +618,12 @@ mkRunTime fc n
                               _ => clauses_init
 
            (rargs ** (tree_rt, _)) <- getPMDef (location gdef) RunTime n ty clauses
-           log "compile.casetree" 5 $ show cov ++ ":\nRuntime tree for " ++ show (fullname gdef) ++ ": " ++ show tree_rt
+           logC "compile.casetree" 5 $ pure $ unlines
+             [ show cov ++ ":"
+             , "Runtime tree for " ++ show (fullname gdef) ++ ":"
+             , show (indent 2 $ pretty {ann = ()} !(toFullNames tree_rt))
+             ]
+           log "compile.casetree" 10 $ show tree_rt
 
            let Just Refl = nameListEq cargs rargs
                    | Nothing => throw (InternalError "WAT")
@@ -617,7 +633,7 @@ mkRunTime fc n
   where
     mkCrash : {vars : _} -> String -> Term vars
     mkCrash msg
-       = apply fc (Ref fc Func (NS ["Builtin"] (UN "idris_crash")))
+       = apply fc (Ref fc Func (NS builtinNS (UN "idris_crash")))
                [Erased fc False, PrimVal fc (Str msg)]
 
     matchAny : Term vars -> Term vars
@@ -696,8 +712,14 @@ processDef opts nest env fc n_in cs_in
                        then erased
                        else linear
          nidx <- resolveName n
-         cs <- traverse (checkClause mult (visibility gdef)
+
+         -- Dynamically rebind default totality requirement to this function's totality requirement
+         -- and use this requirement when processing `with` blocks
+         let treq = fromMaybe !getDefaultTotalityOption (findSetTotal (flags gdef))
+         cs <- withTotality treq $
+               traverse (checkClause mult (visibility gdef) treq
                                      hashit nidx opts nest env) cs_in
+
          let pats = map toPats (rights cs)
 
          (cargs ** (tree_ct, unreachable)) <-
@@ -729,7 +751,7 @@ processDef opts nest env fc n_in cs_in
          defs <- get Ctxt
          put Ctxt (record { toCompileCase $= (n ::) } defs)
 
-         atotal <- toResolvedNames (NS ["Builtin"] (UN "assert_total"))
+         atotal <- toResolvedNames (NS builtinNS (UN "assert_total"))
          when (not (InCase `elem` opts)) $
              do calcRefs False atotal (Resolved nidx)
                 sc <- calculateSizeChange fc n
@@ -747,6 +769,18 @@ processDef opts nest env fc n_in cs_in
          when (not (elem InCase opts)) $
               compileRunTime fc atotal
   where
+    -- Move `withTotality` to Core.Context if we need it elsewhere
+    ||| Temporarily rebind the default totality requirement (%default total/partial/covering).
+    withTotality : TotalReq -> Lazy (Core a) -> Core a
+    withTotality tot c = do
+         defaultTotality <- getDefaultTotalityOption
+         setDefaultTotalityOption tot
+         x <- catch c (\error => do setDefaultTotalityOption defaultTotality
+                                    throw error)
+         setDefaultTotalityOption defaultTotality
+         pure x
+
+
     simplePat : forall vars . Term vars -> Bool
     simplePat (Local _ _ _ _) = True
     simplePat (Erased _ _) = True

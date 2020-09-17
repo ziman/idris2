@@ -1,6 +1,7 @@
 module TTImp.Elab.Record
 
 import Core.Context
+import Core.Context.Log
 import Core.Core
 import Core.Env
 import Core.Metadata
@@ -66,7 +67,8 @@ findConName defs tyn
            Just (TCon _ _ _ _ _ _ [con] _) => pure (Just con)
            _ => pure Nothing
 
-findFields : Defs -> Name ->
+findFields : {auto c : Ref Ctxt Defs} ->
+             Defs -> Name ->
              Core (Maybe (List (String, Maybe Name, Maybe Name)))
 findFields defs con
     = case !(lookupTyExact con (gamma defs)) of

@@ -67,10 +67,6 @@ data FArgList : Type where
      Nil : FArgList
      (::) : {a : Type} -> (1 arg : a) -> (1 args : FArgList) -> FArgList
 
-export
-%extern prim__schemeCall : (ret : Type) -> String -> (1 args : FArgList) ->
-                           (1 x : %World) -> IORes ret
-
 export %inline
 fromPrim : (1 fn : (1 x : %World) -> IORes a) -> IO a
 fromPrim op = MkIO op
@@ -78,10 +74,6 @@ fromPrim op = MkIO op
 export %inline
 toPrim : (1 act : IO a) -> PrimIO a
 toPrim (MkIO fn) = fn
-
-export %inline
-schemeCall : (ret : Type) -> String -> (1 args : FArgList) -> IO ret
-schemeCall ret fn args = fromPrim (prim__schemeCall ret fn args)
 
 
 %foreign
