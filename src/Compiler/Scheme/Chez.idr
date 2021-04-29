@@ -425,9 +425,9 @@ chezNS ns = case showNSWithSep "-" ns of
 -- after the alphabetically first namespace contained within
 chezLibraryName : CompilationUnit def -> String
 chezLibraryName cu =
-  case SortedSet.toList cu.namespaces of
+  case cu.namespaces of
     [] => "unknown"  -- this will never happen because the Tarjan algorithm won't produce an empty SCC
-    ns::_ => chezNS ns
+    ns::_ => ns
 
 record ChezLib where
   constructor MkChezLib
@@ -445,16 +445,20 @@ forState (x :: xs) st f = do
 ||| Compile a TT expression to a bunch of Chez Scheme files
 compileToSS : Ref Ctxt Defs -> String -> String -> ClosedTerm -> Core (Bool, List ChezLib)
 compileToSS c chez appdir tm = do
+  coreLift $ putStrLn "A"
   -- process native libraries
   ds <- getDirectives Chez
   libs <- findLibs ds
   traverse_ copyLib libs
 
+  coreLift $ putStrLn "B"
   -- get the material for compilation
   cdata <- getCompileData False Cases tm
   let ctm = forget (mainExpr cdata)
   let ndefs = namedDefs cdata
+  coreLift $ putStrLn "C"
   let cui = getCompilationUnits ndefs
+  coreLift $ putStrLn "D"
 
   -- copy the support library
   support <- readDataFile "chez/support.ss"
@@ -467,6 +471,7 @@ compileToSS c chez appdir tm = do
     writeFileCore (appdir </> "support.ss") support
     writeFileCore (appdir </> "support.hash") supportHash
 
+  coreLift $ putStrLn "E"
   -- TODO: add extraRuntime
   -- the problem with this is that it's unclear what to put in the (export) clause of the library
   -- extraRuntime <- getExtraRuntime ds
@@ -474,6 +479,7 @@ compileToSS c chez appdir tm = do
   -- for each compilation unit, generate code
   chezLibs <- forState cui.compilationUnits SortedSet.empty $ \outdatedCuids, cu => do
     let chezLib = chezLibraryName cu
+    coreLift $ putStrLn $ "F " ++ chezLib
 
     -- run this only if the hash has changed
     let cuHash = show (hash cu)

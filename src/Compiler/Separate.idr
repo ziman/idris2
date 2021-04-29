@@ -35,7 +35,7 @@ public export
 record CompilationUnit def where
   constructor MkCompilationUnit
   id : CompilationUnitId
-  namespaces : SortedSet Namespace
+  namespaces : List String
   dependencies : SortedSet CompilationUnitId
   definitions : List (Name, def)
 
@@ -46,23 +46,38 @@ Hashable def => Hashable (CompilationUnit def) where
       `hashWithSalt` cu.definitions
 
 private
-getNS : Name -> Namespace
-getNS (NS ns _) = ns
-getNS _ = emptyNS
+getNS : Name -> String
+getNS (NS ns _) = showNSWithSep "-" ns
+getNS _ = ""
 
-private
-splitByNS : List (Name, def) -> List (Namespace, List (Name, def))
-splitByNS = SortedMap.toList . foldl addOne SortedMap.empty
-  where
-    addOne
-      : SortedMap Namespace (List (Name, def))
-      -> (Name, def)
-      -> SortedMap Namespace (List (Name, def))
-    addOne nss ndef@(n, _) =
-      SortedMap.mergeWith
-        (++)
-        (SortedMap.singleton (getNS n) [ndef])
-        nss
+namespace StringSet
+  public export  -- otherwise Idris can't find the Monoid/Semigroup instances
+  StringSet : Type
+  StringSet = StringMap ()
+
+  export
+  fromList : List String -> StringSet
+  fromList xs = StringMap.fromList [(x, ()) | x <- xs]
+
+  export
+  toList : StringSet -> List String
+  toList = StringMap.keys
+
+  export
+  union : StringSet -> StringSet -> StringSet
+  union = StringMap.mergeLeft
+
+  export
+  empty : StringSet
+  empty = StringMap.empty
+
+  export
+  singleton : String -> StringSet
+  singleton x = StringMap.singleton x ()
+
+  export
+  delete : String -> StringSet -> StringSet
+  delete = StringMap.delete
 
 -- https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm#The_algorithm_in_pseudocode
 private
@@ -73,109 +88,109 @@ record TarjanVertex where
   inStack : Bool
 
 private
-record TarjanState cuid where
+record TarjanState where
   constructor TS
-  vertices : SortedMap cuid TarjanVertex
-  stack : List cuid
+  vertices : StringMap TarjanVertex
+  stack : List String
   nextIndex : Int
-  components : List (List cuid)
+  components : List (List String)
   impossibleHappened : Bool
 
 private
-tarjan : Ord cuid => SortedMap cuid (SortedSet cuid) -> List (List cuid)
-tarjan {cuid} deps = loop initialState (SortedMap.keys deps)
+tarjan : StringMap StringSet -> List (List String)
+tarjan deps = loop initialState (StringMap.keys deps)
   where
-    initialState : TarjanState cuid
+    initialState : TarjanState
     initialState =
       TS
-        SortedMap.empty
+        StringMap.empty
         []
         0
         []
         False
 
-    strongConnect : TarjanState cuid -> cuid -> TarjanState cuid
+    strongConnect : TarjanState -> String -> TarjanState
     strongConnect ts v =
-        let ts'' = case SortedMap.lookup v deps of
+        let ts'' = case StringMap.lookup v deps of
               Nothing => ts'  -- no edges
-              Just edgeSet => loop ts' (SortedSet.toList edgeSet)
-          in case SortedMap.lookup v ts''.vertices of
+              Just edgeSet => loop ts' (StringSet.toList edgeSet)
+          in case StringMap.lookup v ts''.vertices of
               Nothing => record { impossibleHappened = True } ts''
               Just vtv =>
                 if vtv.index == vtv.lowlink
                   then createComponent ts'' v []
                   else ts''
       where
-        createComponent : TarjanState cuid -> cuid -> List cuid -> TarjanState cuid
+        createComponent : TarjanState -> String -> List String -> TarjanState
         createComponent ts v acc =
           case ts.stack of
             [] => record { impossibleHappened = True } ts
             w :: ws =>
-              let ts' : TarjanState cuid = record {
-                      vertices $= SortedMap.adjust w record{ inStack = False },
+              let ts' : TarjanState = record {
+                      vertices $= StringMap.adjust w record{ inStack = False },
                       stack = ws
                     } ts
                 in if w == v
                   then record { components $= ((v :: acc) ::) } ts'  -- that's it
                   else createComponent ts' v (w :: acc)
 
-        loop : TarjanState cuid -> List cuid -> TarjanState cuid
+        loop : TarjanState -> List String -> TarjanState
         loop ts [] = ts
         loop ts (w :: ws) =
           loop (
-            case SortedMap.lookup w ts.vertices of
+            case StringMap.lookup w ts.vertices of
               Nothing => let ts' = strongConnect ts w in
-                case SortedMap.lookup w ts'.vertices of
+                case StringMap.lookup w ts'.vertices of
                   Nothing => record { impossibleHappened = True } ts'
-                  Just wtv => record { vertices $= SortedMap.adjust v record{ lowlink $= min wtv.lowlink } } ts'
+                  Just wtv => record { vertices $= StringMap.adjust v record{ lowlink $= min wtv.lowlink } } ts'
 
               Just wtv => case wtv.inStack of
                 False => ts  -- nothing to do
-                True => record { vertices $= SortedMap.adjust v record{ lowlink $= min wtv.index } } ts
+                True => record { vertices $= StringMap.adjust v record{ lowlink $= min wtv.index } } ts
           ) ws
 
-        ts' : TarjanState cuid
+        ts' : TarjanState
         ts' = record {
-            vertices  $= SortedMap.insert v (TV ts.nextIndex ts.nextIndex True),
+            vertices  $= StringMap.insert v (TV ts.nextIndex ts.nextIndex True),
             stack     $= (v ::),
             nextIndex $= (1+)
           } ts
 
-    loop : TarjanState cuid -> List cuid -> List (List cuid)
+    loop : TarjanState -> List String -> List (List String)
     loop ts [] =
       if ts.impossibleHappened
         then []
         else ts.components
     loop ts (v :: vs) =
-      case SortedMap.lookup v ts.vertices of
+      case StringMap.lookup v ts.vertices of
         Just _ => loop ts vs  -- done, skip
         Nothing => loop (strongConnect ts v) vs
 
 public export
 interface HasNamespaces a where
   -- namespaces referred to from within
-  nsRefs : a -> SortedSet Namespace
+  nsRefs : a -> StringSet
 
 mutual
   export
   HasNamespaces NamedCExp where
-    nsRefs (NmLocal fc n) = SortedSet.empty
-    nsRefs (NmRef fc n) = SortedSet.singleton $ getNS n
+    nsRefs (NmLocal fc n) = StringSet.empty
+    nsRefs (NmRef fc n) = StringSet.singleton $ getNS n
     nsRefs (NmLam fc n rhs) = nsRefs rhs
-    nsRefs (NmLet fc n val rhs) = nsRefs val <+> nsRefs rhs
-    nsRefs (NmApp fc f args) = nsRefs f <+> concatMap nsRefs args
+    nsRefs (NmLet fc n val rhs) = nsRefs val `StringSet.union` nsRefs rhs
+    nsRefs (NmApp fc f args) = nsRefs f `StringSet.union` concatMap nsRefs args
     nsRefs (NmCon fc cn tag args) = concatMap nsRefs args
     nsRefs (NmForce fc reason rhs) = nsRefs rhs
     nsRefs (NmDelay fc reason rhs) = nsRefs rhs
-    nsRefs (NmErased fc) = SortedSet.empty
-    nsRefs (NmPrimVal ft x) = SortedSet.empty
+    nsRefs (NmErased fc) = StringSet.empty
+    nsRefs (NmPrimVal ft x) = StringSet.empty
     nsRefs (NmOp fc op args) = concatMap nsRefs args
     nsRefs (NmExtPrim fc n args) = concatMap nsRefs args
     nsRefs (NmConCase fc scrut alts mbDflt) =
-      nsRefs scrut <+> concatMap nsRefs alts <+> concatMap nsRefs mbDflt
+      nsRefs scrut `StringSet.union` (concatMap nsRefs alts `StringSet.union` concatMap nsRefs mbDflt)
     nsRefs (NmConstCase fc scrut alts mbDflt) =
-      nsRefs scrut <+> concatMap nsRefs alts <+> concatMap nsRefs mbDflt
-    nsRefs (NmCrash fc msg) = SortedSet.empty
+      nsRefs scrut `StringSet.union` (concatMap nsRefs alts `StringSet.union` concatMap nsRefs mbDflt)
+    nsRefs (NmCrash fc msg) = StringSet.empty
 
   export
   HasNamespaces NamedConAlt where
@@ -188,8 +203,8 @@ mutual
   export
   HasNamespaces NamedDef where
     nsRefs (MkNmFun argNs rhs) = nsRefs rhs
-    nsRefs (MkNmCon tag arity nt) = SortedSet.empty
-    nsRefs (MkNmForeign ccs fargs rty) = SortedSet.empty
+    nsRefs (MkNmCon tag arity nt) = StringSet.empty
+    nsRefs (MkNmForeign ccs fargs rty) = StringSet.empty
     nsRefs (MkNmError rhs) = nsRefs rhs
 
 -- a slight hack for convenient use with CompileData.namedDefs
@@ -208,7 +223,6 @@ record CompilationUnitInfo def where
   constructor MkCompilationUnitInfo
   compilationUnits : List (CompilationUnit def)  -- ordered by the number of imports, ascending
   byId : SortedMap CompilationUnitId (CompilationUnit def)
-  namespaceMap : SortedMap Namespace CompilationUnitId
 
 export
 getCompilationUnits : HasNamespaces def => List (Name, def) -> CompilationUnitInfo def
@@ -216,51 +230,55 @@ getCompilationUnits {def} defs =
   MkCompilationUnitInfo
     units
     (SortedMap.fromList [(unit.id, unit) | unit <- units])
-    nsMap
   where
-    defsByNS : SortedMap Namespace (List (Name, def))
-    defsByNS = SortedMap.fromList $ splitByNS defs
+    defsByNS : StringMap (List (Name, def))
+    defsByNS = foldl addOne StringMap.empty defs
+      where
+        addOne
+          : StringMap (List (Name, def))
+          -> (Name, def)
+          -> StringMap (List (Name, def))
+        addOne nss ndef@(n, _) =
+          StringMap.mergeWith
+            List.(++)
+            (StringMap.singleton (getNS n) [ndef])
+            nss
 
-    nsDepsRaw : List (SortedMap Namespace (SortedSet Namespace))
-    nsDepsRaw = [SortedMap.singleton (getNS n) (SortedSet.delete (getNS n) (nsRefs d)) | (n, d) <- defs]
+    nsDepsRaw : List (StringMap StringSet)
+    nsDepsRaw = [StringMap.singleton (getNS n) (StringSet.delete (getNS n) (nsRefs d)) | (n, d) <- defs]
 
-    nsDeps : SortedMap Namespace (SortedSet Namespace)
-    nsDeps = foldl (SortedMap.mergeWith SortedSet.union) SortedMap.empty nsDepsRaw
+    nsDeps : StringMap StringSet
+    nsDeps = foldl (StringMap.mergeWith StringSet.union) StringMap.empty nsDepsRaw
 
     -- strongly connected components of the NS dep graph
     -- each SCC will become a compilation unit
-    components : List (List Namespace)
+    components : List (List String)
     components = List.reverse $ tarjan nsDeps  -- tarjan generates reverse toposort
 
     withCUID : List a -> List (CompilationUnitId, a)
     withCUID xs = [(CUID $ cast i, x) | (i, x) <- zip [0..length xs] xs]
 
-    nsMap : SortedMap Namespace CompilationUnitId
-    nsMap = SortedMap.fromList
+    nsMap : StringMap CompilationUnitId
+    nsMap = StringMap.fromList
       [(ns, cuid) | (cuid, nss) <- withCUID components, ns <- nss]
 
-    mkUnit : CompilationUnitId -> List Namespace -> CompilationUnit def
-    mkUnit cuid nss = MkCompilationUnit
-      cuid
-      (SortedSet.fromList nss)
-      dependencies
-      definitions
+    mkUnit : CompilationUnitId -> List String -> CompilationUnit def
+    mkUnit cuid nss = MkCompilationUnit cuid nss dependencies definitions
      where
       dependencies : SortedSet CompilationUnitId
       dependencies = SortedSet.fromList $ do
         ns <- nss  -- NS contained within
-        depsNS <- SortedSet.toList $  -- NS we depend on
-          fromMaybe SortedSet.empty $
-            SortedMap.lookup ns nsDeps
+        depsNS <- StringSet.toList $  -- NS we depend on
+          fromMaybe StringSet.empty $
+            StringMap.lookup ns nsDeps
 
-        case SortedMap.lookup depsNS nsMap of
+        case StringMap.lookup depsNS nsMap of
           Nothing => []
           Just depCUID => [depCUID]
 
       definitions : List (Name, def)
-      definitions =
-        (concat
-          [fromMaybe [] $ SortedMap.lookup ns defsByNS | ns <- nss])
+      definitions = concat
+        [fromMaybe [] $ StringMap.lookup ns defsByNS | ns <- nss]
 
 
     units : List (CompilationUnit def)
