@@ -167,10 +167,45 @@ tarjan deps = loop initialState (StringMap.keys deps)
         Nothing => loop (strongConnect ts v) vs
 
 public export
-interface HasNamespaces a where
+interface HasNamespaces def where
   -- namespaces referred to from within
-  nsRefs : a -> StringSet
+  nsRefs : def -> StringSet
 
+-- namespaces mentioned within
+mutual
+  nsTm : NamedCExp -> StringSet
+  nsTm (NmLocal fc n) = StringSet.empty
+  nsTm (NmRef fc n) = StringSet.singleton $ getNS n
+  nsTm (NmLam fc n rhs) = nsTm rhs
+  nsTm (NmLet fc n val rhs) = nsTm val <+> nsTm rhs
+  nsTm (NmApp fc f args) = nsTm f <+> concatMap nsTm args
+  nsTm (NmCon fc cn tag args) = concatMap nsTm args
+  nsTm (NmForce fc r rhs) = nsTm rhs
+  nsTm (NmDelay fc r rhs) = nsTm rhs
+  nsTm (NmErased fc) = StringSet.empty
+  nsTm (NmPrimVal ft x) = StringSet.empty
+  nsTm (NmOp fc op args) = concatMap nsTm args
+  nsTm (NmExtPrim fc n args) = concatMap nsTm args
+  nsTm (NmConCase fc scrut alts mbDflt) =
+    nsTm scrut <+> concatMap nsConAlt alts <+> concatMap nsTm mbDflt
+  nsTm (NmConstCase fc scrut alts mbDflt) =
+    nsTm scrut <+> concatMap nsConstAlt alts <+> concatMap nsTm mbDflt
+  nsTm (NmCrash fc msg) = StringSet.empty
+
+  nsConAlt : NamedConAlt -> StringSet
+  nsConAlt (MkNConAlt n tag args rhs) = nsTm rhs
+
+  nsConstAlt : NamedConstAlt -> StringSet
+  nsConstAlt (MkNConstAlt c rhs) = nsTm rhs
+
+export
+HasNamespaces NamedDef where
+  nsRefs (MkNmFun argNs rhs) = nsTm rhs
+  nsRefs (MkNmCon tag arity nt) = StringSet.empty
+  nsRefs (MkNmForeign ccs fargs rty) = StringSet.empty
+  nsRefs (MkNmError rhs) = nsTm rhs
+
+{-
 mutual
   export
   HasNamespaces NamedCExp where
@@ -206,6 +241,7 @@ mutual
     nsRefs (MkNmCon tag arity nt) = StringSet.empty
     nsRefs (MkNmForeign ccs fargs rty) = StringSet.empty
     nsRefs (MkNmError rhs) = nsRefs rhs
+-}
 
 -- a slight hack for convenient use with CompileData.namedDefs
 export
@@ -227,59 +263,59 @@ record CompilationUnitInfo def where
 export
 getCompilationUnits : HasNamespaces def => List (Name, def) -> CompilationUnitInfo def
 getCompilationUnits {def} defs =
-  MkCompilationUnitInfo
-    units
-    (SortedMap.fromList [(unit.id, unit) | unit <- units])
-  where
+  -- we use `let` instead of `where`
+  -- because `where` would not memoise these expensive computations
+  let
     defsByNS : StringMap (List (Name, def))
-    defsByNS = foldl addOne StringMap.empty defs
-      where
-        addOne
-          : StringMap (List (Name, def))
-          -> (Name, def)
-          -> StringMap (List (Name, def))
-        addOne nss ndef@(n, _) =
-          StringMap.mergeWith
-            List.(++)
-            (StringMap.singleton (getNS n) [ndef])
-            nss
+      = foldl addOneDefByNS StringMap.empty defs
 
     nsDepsRaw : List (StringMap StringSet)
-    nsDepsRaw = [StringMap.singleton (getNS n) (StringSet.delete (getNS n) (nsRefs d)) | (n, d) <- defs]
+      = [StringMap.singleton (getNS n) (StringSet.delete (getNS n) (nsRefs d)) | (n, d) <- defs]
 
     nsDeps : StringMap StringSet
-    nsDeps = foldl (StringMap.mergeWith StringSet.union) StringMap.empty nsDepsRaw
+      = foldl (StringMap.mergeWith StringSet.union) StringMap.empty nsDepsRaw
 
     -- strongly connected components of the NS dep graph
     -- each SCC will become a compilation unit
     components : List (List String)
-    components = List.reverse $ tarjan nsDeps  -- tarjan generates reverse toposort
+      = List.reverse $ tarjan nsDeps  -- tarjan generates reverse toposort
 
+    nsMap : StringMap CompilationUnitId
+      = StringMap.fromList [(ns, cuid) | (cuid, nss) <- withCUID components, ns <- nss]
+
+    units : List (CompilationUnit def)
+      = [mkUnit defsByNS nsDeps nsMap cuid nss | (cuid, nss) <- withCUID components]
+
+  in MkCompilationUnitInfo
+      units
+      (SortedMap.fromList [(unit.id, unit) | unit <- units])
+
+  where
     withCUID : List a -> List (CompilationUnitId, a)
     withCUID xs = [(CUID $ cast i, x) | (i, x) <- zip [0..length xs] xs]
 
-    nsMap : StringMap CompilationUnitId
-    nsMap = StringMap.fromList
-      [(ns, cuid) | (cuid, nss) <- withCUID components, ns <- nss]
+    addOneDefByNS : StringMap (List (Name, def)) -> (Name, def) -> StringMap (List (Name, def))
+    addOneDefByNS nss ndef@(n, _) =
+      StringMap.mergeWith
+        List.(++)
+        (StringMap.singleton (getNS n) [ndef])
+        nss
 
-    mkUnit : CompilationUnitId -> List String -> CompilationUnit def
-    mkUnit cuid nss = MkCompilationUnit cuid nss dependencies definitions
-     where
-      dependencies : SortedSet CompilationUnitId
-      dependencies = SortedSet.fromList $ do
-        ns <- nss  -- NS contained within
-        depsNS <- StringSet.toList $  -- NS we depend on
-          fromMaybe StringSet.empty $
-            StringMap.lookup ns nsDeps
+    mkUnit : StringMap (List (Name, def)) -> StringMap StringSet -> StringMap CompilationUnitId -> CompilationUnitId -> List String -> CompilationUnit def
+    mkUnit defsByNS nsDeps nsMap cuid nss =
+      let
+        dependencies : SortedSet CompilationUnitId
+          = SortedSet.fromList $ do
+            ns <- nss  -- NS contained within
+            depsNS <- StringSet.toList $  -- NS we depend on
+              fromMaybe StringSet.empty $
+                StringMap.lookup ns nsDeps
 
-        case StringMap.lookup depsNS nsMap of
-          Nothing => []
-          Just depCUID => [depCUID]
+            case StringMap.lookup depsNS nsMap of
+              Nothing => []
+              Just depCUID => [depCUID]
 
-      definitions : List (Name, def)
-      definitions = concat
-        [fromMaybe [] $ StringMap.lookup ns defsByNS | ns <- nss]
-
-
-    units : List (CompilationUnit def)
-    units = [mkUnit cuid nss | (cuid, nss) <- withCUID components]
+        definitions : List (Name, def)
+          = concat [fromMaybe [] $ StringMap.lookup ns defsByNS | ns <- nss]
+      in
+        MkCompilationUnit cuid nss dependencies definitions

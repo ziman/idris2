@@ -416,10 +416,9 @@ readFileCore fname =
     Right content => pure content
     Left err => throw $ FileErr fname err
 
-chezNS : Namespace -> String
-chezNS ns = case showNSWithSep "-" ns of
-  "" => "unqualified"
-  nss => nss
+chezNS : String -> String
+chezNS "" = "unqualified"
+chezNS ns = ns
 
 -- arbitrarily name the compilation unit
 -- after the alphabetically first namespace contained within
@@ -427,7 +426,7 @@ chezLibraryName : CompilationUnit def -> String
 chezLibraryName cu =
   case cu.namespaces of
     [] => "unknown"  -- this will never happen because the Tarjan algorithm won't produce an empty SCC
-    ns::_ => ns
+    ns::_ => chezNS ns
 
 record ChezLib where
   constructor MkChezLib
