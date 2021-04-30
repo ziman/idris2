@@ -2523,5 +2523,6 @@ recordWarning w
 export
 addPostprocess : {auto c : Ref Ctxt Defs} -> IO () -> Core ()
 addPostprocess io = do
+  coreLift $ putStrLn "adding postprocess"
   defs <- get Ctxt
   put Ctxt $ record { postprocess $= (io ::) } defs

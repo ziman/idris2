@@ -230,7 +230,10 @@ stMain cgs opts
 
          -- return the postprocess code
          finalDefs <- get Ctxt
-         pure $ traverse_ id finalDefs.postprocess
+         pure $ do
+           putStrLn "launching finalDefs"
+           printLn $ length finalDefs.postprocess
+           traverse_ id finalDefs.postprocess
   where
 
   renderError : {auto c : Ref Ctxt Defs} ->

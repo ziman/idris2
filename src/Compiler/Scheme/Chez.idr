@@ -566,6 +566,10 @@ makeShWindows chez outShRel appDirSh targetSh
 ||| containing big data (such as compiler context), which would prevent garbage collection.
 compileChez : String -> String -> Bool -> List ChezLib -> IO ()
 compileChez chez appDirRel supportChanged chezLibs = do
+  putStrLn "starting compileChez"
+  printLn (chez, appDirRel, supportChanged)
+  printLn $ map (.name) chezLibs
+
   -- compile the support code
   when supportChanged $ do
     compileChezLibrary chez appDirRel (appDirRel </> "support.ss")
