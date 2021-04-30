@@ -1074,6 +1074,10 @@ record Defs where
      -- ^ record of timings from logTimeRecord
   warnings : List Warning
      -- ^ as yet unreported warnings
+  postprocess : List (IO ())
+     -- ^ code to run after deallocation of all compiler state
+     -- useful for code generation.
+     -- Stored in reverse order, compared to order of calling addPostprocess.
 
 -- Label for context references
 export
@@ -1118,6 +1122,7 @@ initDefs
            , peFailures = empty
            , timings = empty
            , warnings = []
+           , postprocess = []
            }
 
 -- Reset the context, except for the options
@@ -2514,3 +2519,9 @@ recordWarning : {auto c : Ref Ctxt Defs} ->
 recordWarning w
     = do defs <- get Ctxt
          put Ctxt (record { warnings $= (w ::) } defs)
+
+export
+addPostprocess : {auto c : Ref Ctxt Defs} -> IO () -> Core ()
+addPostprocess io = do
+  defs <- get Ctxt
+  put Ctxt $ record { postprocess $= (io ::) } defs
