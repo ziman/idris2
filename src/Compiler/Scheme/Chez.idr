@@ -391,8 +391,8 @@ startChezWinSh chez appDirSh targetSh = unlines
     ]
 
 -- TODO: parallelise this
-compileChezLibraries : (chez : String) -> (libDir : String) -> (ssFiles : List String) -> Core ()
-compileChezLibraries chez libDir ssFiles = ignore $ coreLift $ system $ unwords
+compileChezLibraries : (chez : String) -> (libDir : String) -> (ssFiles : List String) -> IO ()
+compileChezLibraries chez libDir ssFiles = ignore $ system $ unwords
   [ "echo"
   , unwords
     [ "'(parameterize ([optimize-level 3] [compile-file-message #f]) (compile-library " ++ chezString ssFile ++ "))'"
@@ -401,15 +401,15 @@ compileChezLibraries chez libDir ssFiles = ignore $ coreLift $ system $ unwords
   , "|", chez, "-q", "--libdirs", libDir
   ]
 
-compileChezLibrary : (chez : String) -> (libDir : String) -> (ssFile : String) -> Core ()
-compileChezLibrary chez libDir ssFile = ignore $ coreLift $ system $ unwords
+compileChezLibrary : (chez : String) -> (libDir : String) -> (ssFile : String) -> IO ()
+compileChezLibrary chez libDir ssFile = ignore $ system $ unwords
   [ "echo"
   , "'(parameterize ([optimize-level 3] [compile-file-message #f]) (compile-library " ++ chezString ssFile ++ "))'"
   , "|", chez, "-q", "--libdirs", libDir
   ]
 
-compileChezProgram : (chez : String) -> (libDir : String) -> (ssFile : String) -> Core ()
-compileChezProgram chez libDir ssFile = ignore $ coreLift $ system $ unwords
+compileChezProgram : (chez : String) -> (libDir : String) -> (ssFile : String) -> IO ()
+compileChezProgram chez libDir ssFile = ignore $ system $ unwords
   [ "echo"
   , "'(parameterize ([optimize-level 3] [compile-file-message #f]) (compile-program " ++ chezString ssFile ++ "))'"
   , "|", chez, "-q", "--libdirs", libDir
@@ -440,8 +440,8 @@ chezLibraryName cu =
     [] => "unknown"  -- this will never happen because the Tarjan algorithm won't produce an empty SCC
     ns::_ => chezNS ns
 
-touch : String -> Core ()
-touch s = ignore $ coreLift $ system ("touch \"" ++ s ++ "\"")
+touch : String -> IO ()
+touch s = ignore $ system ("touch \"" ++ s ++ "\"")
 
 record ChezLib where
   constructor MkChezLib
@@ -560,6 +560,28 @@ makeShWindows chez outShRel appDirSh targetSh
             | Left err => throw (FileErr outShRel err)
          pure ()
 
+||| Invoke the Chez compiler.
+|||
+||| We make this a separate function to ensure we don't accidentally hold on any implicits
+||| containing big data (such as compiler context), which would prevent garbage collection.
+compileChez : String -> String -> Bool -> List ChezLib -> IO ()
+compileChez chez appDirRel supportChanged chezLibs = do
+  -- compile the support code
+  when supportChanged $ do
+    compileChezLibrary chez appDirRel (appDirRel </> "support.ss")
+
+  -- compile every compilation unit
+  compileChezLibraries chez appDirRel
+    [appDirRel </> lib.name <.> "ss" | lib <- chezLibs, lib.isOutdated]
+
+  -- touch them in the right order to make the timestamps right
+  -- even for the libraries that were not recompiled
+  flip traverse_ chezLibs $ \lib => do
+    touch (appDirRel </> lib.name <.> "so")
+
+  -- compile the main program
+  compileChezProgram chez appDirRel (appDirRel </> "mainprog.ss")
+
 ||| Chez Scheme implementation of the `compileExpr` interface.
 compileExpr : Bool -> Ref Ctxt Defs -> (tmpDir : String) -> (outputDir : String) ->
               ClosedTerm -> (outfile : String) -> Core (Maybe String)
@@ -577,24 +599,9 @@ compileExpr makeitso c tmpDir outputDir tm outfile = do
   (supportChanged, chezLibs) <- compileToSS c chez appDirRel tm
 
   -- compile the code
-  logTime "++ Make SO" $ when makeitso $ do
-    -- compile the support code
-    when supportChanged $ do
-      log "compiler.scheme.chez" 3 $ "Compiling support"
-      compileChezLibrary chez appDirRel (appDirRel </> "support.ss")
-
-    -- compile every compilation unit
-    compileChezLibraries chez appDirRel
-      [appDirRel </> lib.name <.> "ss" | lib <- chezLibs, lib.isOutdated]
-
-    -- touch them in the right order to make the timestamps right
-    -- even for the libraries that were not recompiled
-    for_ chezLibs $ \lib => do
-      log "compiler.scheme.chez" 3 $ "Touching " ++ lib.name
-      touch (appDirRel </> lib.name <.> "so")
-
-    -- compile the main program
-    compileChezProgram chez appDirRel (appDirRel </> "mainprog.ss")
+  logTime "++ Make SO" $ when makeitso $
+    addPostprocess $
+      compileChez chez appDirRel supportChanged chezLibs
 
   -- generate the launch script
   let outShRel = outputDir </> outfile
