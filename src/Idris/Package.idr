@@ -519,14 +519,20 @@ parsePkgFile file = do
       | Left err => throw err
   addFields fs (initPkgDesc pname)
 
+%foreign "scheme:collect"
+prim__gc : PrimIO ()
+
+collectGarbage : IO ()
+collectGarbage = fromPrim prim__gc
+
 processPackage : {auto c : Ref Ctxt Defs} ->
                  {auto s : Ref Syn SyntaxInfo} ->
                  {auto o : Ref ROpts REPLOpts} ->
                  List CLOpt ->
                  (PkgCommand, String) ->
                  Core ()
-processPackage opts (cmd, file)
-    = withCtxt . withSyn . withROpts $ case cmd of
+processPackage opts (cmd, file) = do
+  pp <- withCtxt . withSyn . withROpts $ case cmd of
         Init =>
           do pkg <- coreLift interactive
              let fp = if file == "" then pkg.name ++ ".ipkg" else file
@@ -534,7 +540,7 @@ processPackage opts (cmd, file)
                | _ => throw (GenericMsg emptyFC ("File " ++ fp ++ " already exists"))
              Right () <- coreLift $ writeFile fp (show $ the (Doc ()) $ pretty pkg)
                | Left err => throw (FileErr fp err)
-             pure ()
+             pure (the (List (IO ())) [])
         _ =>
           do let Just (dir, filename) = splitParent file
                  | _ => throw $ InternalError "Tried to split empty string"
@@ -564,6 +570,16 @@ processPackage opts (cmd, file)
                        | errs => coreLift (exitWith (ExitFailure 1))
                     runRepl (map snd $ mainmod pkg)
                   Init => pure () -- already handled earlier
+
+             ctx <- get Ctxt
+             pure ctx.postprocess
+
+  -- run the deferred postprocess actions
+  -- we run them here because the context has been deallocated
+  -- so we don't hang on to gigabytes of memory unnecessarily
+  coreLift $ do
+    collectGarbage
+    traverse_ id pp
 
 record PackageOpts where
   constructor MkPFR

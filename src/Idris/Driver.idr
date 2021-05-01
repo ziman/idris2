@@ -142,12 +142,12 @@ checkVerbose [] = False
 checkVerbose (Verbose :: _) = True
 checkVerbose (_ :: xs) = checkVerbose xs
 
-stMain : List (String, Codegen) -> List CLOpt -> Core (IO ())
+stMain : List (String, Codegen) -> List CLOpt -> Core ()
 stMain cgs opts
     = do False <- tryYaffle opts
-            | True => pure (pure ())
+            | True => pure ()
          False <- tryTTM opts
-            | True => pure (pure ())
+            | True => pure ()
          defs <- initDefs
          let updated = foldl (\o, (s, _) => addCG (s, Other s) o) (options defs) cgs
          c <- newRef Ctxt (record { options = updated } defs)
@@ -170,7 +170,6 @@ stMain cgs opts
          when (not finish) $ do
            -- If there's a --build or --install, just do that then quit
            done <- processPackageOpts opts
-
            when (not done) $ flip catch renderError $
               do True <- preOptions opts
                      | False => pure ()
@@ -227,13 +226,6 @@ stMain cgs opts
                        case errorLine ropts of
                          Nothing => pure ()
                          Just _ => coreLift $ exitWith (ExitFailure 1)
-
-         -- return the postprocess code
-         finalDefs <- get Ctxt
-         pure $ do
-           putStrLn "launching finalDefs"
-           printLn $ length finalDefs.postprocess
-           traverse_ id finalDefs.postprocess
   where
 
   renderError : {auto c : Ref Ctxt Defs} ->
@@ -273,4 +265,4 @@ mainWithCodegens cgs = do
     coreRun (stMain cgs opts)
       (\err : Error => do putStrLn ("Uncaught error: " ++ show err)
                           exitWith (ExitFailure 1))
-      (\okPostprocess => okPostprocess)
+      (\res => pure res)

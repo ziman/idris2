@@ -604,7 +604,8 @@ compileExpr makeitso c tmpDir outputDir tm outfile = do
 
   -- compile the code
   logTime "++ Make SO" $ when makeitso $
-    addPostprocess $
+    addPostprocess $ do
+      putStrLn "running chez!"
       compileChez chez appDirRel supportChanged chezLibs
 
   -- generate the launch script
